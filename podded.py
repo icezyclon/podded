@@ -20,7 +20,7 @@ To prevent self-modification, set LOCK = True or use the 'lock' command.
 You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 """
 
-__version__ = "0.12"
+__version__ = "0.13"
 
 import os
 import shlex
@@ -28,6 +28,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import urllib.request
 from pathlib import Path
 
 # === LOCK START ===
@@ -44,15 +45,14 @@ COMMAND: list[str] = []
 # the following config will not be changed via commands and may be edited by hand:
 TAG: str = Path(__file__).name.split(".", 1)[0].replace(" ", "_")
 BUILD_COMMAND: list[str] = ["podman", "build", "-t", TAG]  # + <temp-Containerfile-dir>
-RUN_COMMAND: list[str] = ["podman", "run", "--name", TAG]  # + COMMAND
+RUN_COMMAND: list[str] = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
 RUN_IT_COMMAND: list[str] = ["podman", "run", "-it", "--name", TAG]  # + COMMAND
 STOP_COMMAND: list[str] = ["podman", "stop", TAG]
 # fallback to ghcr.io/containers/podlet container if podlet is not locally installed
 PODLET_COMMAND: list[str] = ["podlet", "-i"] + RUN_COMMAND + []  # + COMMAND
-PODLET_FALLBACK: list[str] = (
-    ["podman", "run", "--rm", "ghcr.io/containers/podlet"] + RUN_COMMAND + []
-)  # + COMMAND
+PODLET_FALLBACK: list[str] = ["podman", "run", "--rm", "ghcr.io/containers/podlet"] + RUN_COMMAND
 QUADLET_DIR: Path = Path.home() / ".config" / "containers" / "systemd"
+UPDATE_REPO: str = "https://raw.githubusercontent.com/icezyclon/podded/main/podded.py"
 
 
 class ArgumentError(Exception):
@@ -67,7 +67,7 @@ class NotProvided(Exception):
     pass
 
 
-def modify(
+def _modify(
     content: list[str],
     *,
     lock: bool | None = None,
@@ -127,14 +127,14 @@ def modify(
     return variables
 
 
-def self_modify(
+def _self_modify(
     *,
     lock: bool | None = None,
     container: str | None = None,
     command: list[str] | None = None,
 ) -> None:
     content = Path(__file__).read_text().splitlines()
-    new_variables = modify(content, lock=lock, container=container, command=command)
+    new_variables = _modify(content, lock=lock, container=container, command=command)
     globals().update(new_variables)
     Path(__file__).write_text("\n".join(content) + "\n")
 
@@ -199,13 +199,14 @@ def main_(args: list[str]) -> None:
             "  disable             Disable and stop systemd service",
             # "  quadlet             Generate the quadlet (.container file) and print to stdout",
             "",
-            ("LOCKED commands:" if LOCK else "Self-Modifying Commands:"),
+            "Self-Modifying Commands:" + (" (LOCKED)" if LOCK else ""),
             f"  command COMMAND*    Save COMMAND of form '{' '.join(RUN_COMMAND)} COMMAND*'",
             f"  run[-it] COMMAND*   Save COMMAND of form '{' '.join(RUN_COMMAND)} COMMAND*' and run it [in interactive mode]",
             "  build-copy PATH     Save the *content* of Containerfile/Dockerfile at PATH",
             "  build PATH          Save the *content* of Containerfile/Dockerfile at PATH and build it",
-            "  lock [force]         LOCK the build and run commands such that they cannot change anymore",
+            "  lock [force]        Lock the build and run commands and prevent further self-modification",
             "  clear [build/run]   Clear saved Containerfile, run-command or both",
+            "  update-from-repo    Download and update this script with the most up-to-date podded.py from Github",
             sep="\n",
         )
     elif cmd in ["all", "allit", "all-it"]:
@@ -215,14 +216,14 @@ def main_(args: list[str]) -> None:
         if len(options) != 0:
             if LOCK:
                 raise Locked
-            self_modify(command=options)  # will modify global COMMAND as well
+            _self_modify(command=options)  # will modify global COMMAND as well
         run_cmd(cmd != "run")
     elif cmd in ["cmd", "command"]:
         if LOCK:
             raise Locked
         if len(options) == 0:
             raise ArgumentError(f"Expected at least 1 argument COMMAND*, got {len(options)}")
-        self_modify(command=options)
+        _self_modify(command=options)
     elif cmd in ["build", "build-copy", "build-take", "build-keep"]:
         if len(options) == 0 and cmd == "build":
             return build_cmd(should_return=False)
@@ -233,7 +234,7 @@ def main_(args: list[str]) -> None:
         path = Path(options[0]).resolve()
         if not path.exists() or not path.is_file():
             raise ArgumentError(f"PATH '{path.as_posix()}' does not exist or is not a file")
-        self_modify(container=path.read_text())
+        _self_modify(container=path.read_text())
         if cmd == "build":
             build_cmd(should_return=False)
     elif cmd in ["stop"]:
@@ -287,7 +288,7 @@ def main_(args: list[str]) -> None:
             assert False, f"Not implemented sub-command {cmd}"
     elif cmd in ["lock"]:
         if len(options) == 1 and options[0] in ["force", "--force", "-f"]:
-            return self_modify(lock=True)
+            return _self_modify(lock=True)
         if len(options) != 0:
             raise ArgumentError(f"Expected at most 1 argument force, got {len(options)}")
         if LOCK:
@@ -307,16 +308,16 @@ def main_(args: list[str]) -> None:
         inp = input("Lock file? [y/N]: ").strip().lower()
         if inp not in ["y", "yes", "true"]:
             raise ArgumentError("Aborted")
-        self_modify(lock=True)
+        _self_modify(lock=True)
     elif cmd in ["clear"]:
         if LOCK:
             raise Locked
         if len(options) == 0:
-            self_modify(container="", command=[])
+            _self_modify(container="", command=[])
         elif len(options) == 1 and options[0] in ["build"]:
-            self_modify(container="")
+            _self_modify(container="")
         elif len(options) == 1 and options[0] in ["cmd", "command"]:
-            self_modify(command=[])
+            _self_modify(command=[])
         elif len(options) == 1:
             raise ArgumentError(
                 f"Unknown sub-command: {options[0]}, expected 'build', 'run' or none"
@@ -331,10 +332,10 @@ def main_(args: list[str]) -> None:
             raise ArgumentError(f"PATH '{path.as_posix()}' does already exist")
         content = Path(__file__).read_text().splitlines()
         if cmd == "copy":
-            modify(content, lock=False, print_difference=False)
+            _modify(content, lock=False, print_difference=False)
             msg = f"Writing unlocked copy to '{path.as_posix()}', you may want to lock it or clear it before use"
         else:
-            modify(content, lock=False, container="", command=[], print_difference=False)
+            _modify(content, lock=False, container="", command=[], print_difference=False)
             msg = f"Writing cleared/reset copy to '{path.as_posix()}', you may want to add Containerfile and commands"
         print(msg)
         path.write_text("\n".join(content) + "\n")
@@ -355,6 +356,31 @@ def main_(args: list[str]) -> None:
             print(shlex.join(RUN_COMMAND + COMMAND))
         else:
             raise ArgumentError(f"Unknown OPTION {options[0]}, expected f/b/r")
+    elif cmd in ["update", "update-from-repo"]:
+        if LOCK:
+            print(
+                f"WARNING: Updating would self-modify this script, which is currently LOCKED. Please open '{str(Path(__file__))}' and set LOCK = False to proceed."
+            )
+            raise Locked
+        if len(options) == 1:
+            raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
+        print(
+            "WARNING: While your CONTAINERFILE and COMMAND will be kept, any other modifications will be lost!"
+        )
+        inp = input("Do you wish to proceed and update this file? [Y/n]")
+        if inp.lower() in ["n", "no", "abort", "exit"]:
+            raise ArgumentError("Aborted")
+        with urllib.request.urlopen(UPDATE_REPO, timeout=10) as response:
+            new = response.read().decode().rstrip().replace("\r", "").split("\n")
+        oldv = __version__
+        _modify(new, lock=LOCK, container=CONTAINERFILE.lstrip(), command=COMMAND)
+        _v = "__version__ ="
+        newv = next(
+            (line.removeprefix(_v) for line in new if line.startswith(_v)),
+            "Cannot determine new version",
+        )
+        Path(__file__).write_text("\n".join(new) + "\n")
+        print(f'Update successful: "{oldv}" -> {newv}')
     else:
         print("Use command 'help' for usage")
         raise ArgumentError(f"Unknown command: {cmd}")
@@ -371,7 +397,7 @@ def main(args: list[str]) -> int:
         )
         return 1
     except Locked:
-        print("LOCKED: This script cannot modify itself anymore", file=sys.stderr)
+        print("LOCKED: This script cannot modify itself", file=sys.stderr)
         return 2
     except subprocess.CalledProcessError as e:
         print(

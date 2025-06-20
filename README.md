@@ -140,7 +140,7 @@ You can use `podded` in **two ways**:
 curl -o ~/.local/bin/podded https://raw.githubusercontent.com/icezyclon/podded/main/podded.py
 chmod +x ~/.local/bin/podded
 # lock the global script to prevent accidental changes
-podded lock force
+podded lock force # (or leave open to use `podded update` to update to newer versions)
 
 # you can then create new scripts whenever you need them
 podded new PATH/NAME
