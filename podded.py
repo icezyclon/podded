@@ -7,21 +7,22 @@
 """
 podded - Saves your podman build instructions, run commands and systemd (quadlet) service files - all in a single script.
 
-podded solves the inconvenience of having to manage run command, Containerfile and quadlet file in a single script:
+podded solves the inconvenience of having to manage run command, Containerfile and quadlet file in a single self-modifying script:
 * Stores the Containerfile inside the script
 * Saves and reuses your podman run command after the first use
 * Automatically generates and manages quadlet files for systemd
 
 For more details see: https://github.com/icezyclon/podded
-
-NOTE:
-To allow for this in a single file, this script can self-modify within "# === SECTION START/END ===" marked sections.
-To prevent self-modification, set LOCK = True or use the 'lock' command.
-You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 """
 
-__version__ = "0.13"
+# NOTE:
+# To allow for this in a single file, this script can self-modify within "# === SECTION START/END ===" marked sections.
+# To prevent self-modification, set LOCK = True or use the 'lock' command.
+# You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 
+__version__ = "0.14"
+
+import difflib
 import os
 import shlex
 import shutil
@@ -44,14 +45,14 @@ COMMAND: list[str] = []
 
 # the following config will not be changed via commands and may be edited by hand:
 TAG: str = Path(__file__).name.split(".", 1)[0].replace(" ", "_")
-BUILD_COMMAND: list[str] = ["podman", "build", "-t", TAG]  # + <temp-Containerfile-dir>
-RUN_COMMAND: list[str] = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
-RUN_IT_COMMAND: list[str] = ["podman", "run", "-it", "--name", TAG]  # + COMMAND
-STOP_COMMAND: list[str] = ["podman", "stop", TAG]
+BUILD_COMMAND = ["podman", "build", "-t", TAG]  # + <temp-Containerfile-dir>
+RUN_COMMAND = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
+RUN_IT_COMMAND = ["podman", "run", "-it", "--name", TAG]  # + COMMAND
+STOP_COMMAND = ["podman", "stop", TAG]
 # fallback to ghcr.io/containers/podlet container if podlet is not locally installed
-PODLET_COMMAND: list[str] = ["podlet", "-i"] + RUN_COMMAND + []  # + COMMAND
-PODLET_FALLBACK: list[str] = ["podman", "run", "--rm", "ghcr.io/containers/podlet"] + RUN_COMMAND
-QUADLET_DIR: Path = Path.home() / ".config" / "containers" / "systemd"
+PODLET_COMMAND = ["podlet", "-i"] + RUN_COMMAND + []  # + COMMAND
+PODLET_FALLBACK = ["podman", "run", "--rm", "ghcr.io/containers/podlet"] + RUN_COMMAND
+QUADLET_DIR = Path.home() / ".config" / "containers" / "systemd"
 UPDATE_REPO: str = "https://raw.githubusercontent.com/icezyclon/podded/main/podded.py"
 
 
@@ -127,16 +128,29 @@ def _modify(
     return variables
 
 
+def _read_self() -> list[str]:
+    return Path(__file__).read_text().splitlines()
+
+
+def _read_newest() -> list[str]:
+    with urllib.request.urlopen(UPDATE_REPO, timeout=10) as response:
+        return response.read().decode().rstrip().replace("\r", "").split("\n")
+
+
+def _write_content(path: str | Path, content: list[str]):
+    Path(path).write_text("\n".join(content) + "\n")
+
+
 def _self_modify(
     *,
     lock: bool | None = None,
     container: str | None = None,
     command: list[str] | None = None,
 ) -> None:
-    content = Path(__file__).read_text().splitlines()
+    content = _read_self()
     new_variables = _modify(content, lock=lock, container=container, command=command)
     globals().update(new_variables)
-    Path(__file__).write_text("\n".join(content) + "\n")
+    _write_content(__file__, content)
 
 
 def build_cmd(should_return: bool):
@@ -170,18 +184,13 @@ def run_cmd(interactive: bool):
 
 def main_(args: list[str]) -> None:
     if len(args) == 0:
-        args.append("help")
-
-    if TAG != Path(__file__).name.split(".", 1)[0].replace(" ", "_"):
-        print(
-            f"WARNING: TAG overwritten with '{TAG}' and used instead of default",
-            file=sys.stderr,
-        )
+        args = ["help"]
 
     cmd, options = args[0].lower(), args[1:]
     if cmd in ["help", "--help"]:
         print(
-            f"podded.py {__version__}   Saves your podman build instructions, run commands and systemd (quadlet) service files - all in a single script",
+            __doc__.lstrip(),
+            f"Version: {__version__}",
             "",
             "Commands:",
             "  help                See this help text",
@@ -191,7 +200,8 @@ def main_(args: list[str]) -> None:
             f"  stop                Stop the running container with name '{TAG}'",
             f"  new PATH/NAME       Create a new cleared/reset copy of {Path(__file__).name} at PATH/NAME",
             f"  copy PATH/NAME      Create a new unlocked copy of {Path(__file__).name} at PATH/NAME",
-            "  print (f/b/r)       Print out the saved Container(f)ile, the (b)uild command or the (r)un command to stdout",
+            "  print (f/b/r)       Print the saved Container(f)ile, the (b)uild command or the (r)un command to stdout",
+            "  version [diff]      Print the version of this script to stdout [checking against the newest version online]",
             "",
             "Systemd commands:",
             f"  status              Show status of systemd service ({TAG})",
@@ -233,7 +243,7 @@ def main_(args: list[str]) -> None:
             raise ArgumentError(f"Expected 1 argument PATH, got {len(options)}")
         path = Path(options[0]).resolve()
         if not path.exists() or not path.is_file():
-            raise ArgumentError(f"PATH '{path.as_posix()}' does not exist or is not a file")
+            raise ArgumentError(f"PATH '{str(path)}' does not exist or is not a file")
         _self_modify(container=path.read_text())
         if cmd == "build":
             build_cmd(should_return=False)
@@ -329,16 +339,16 @@ def main_(args: list[str]) -> None:
             raise ArgumentError(f"Expected 1 argument PATH, got {len(options)}")
         path = Path(options[0]).resolve()
         if path.exists():
-            raise ArgumentError(f"PATH '{path.as_posix()}' does already exist")
-        content = Path(__file__).read_text().splitlines()
+            raise ArgumentError(f"PATH '{str(path)}' does already exist")
+        content = _read_self()
         if cmd == "copy":
             _modify(content, lock=False, print_difference=False)
-            msg = f"Writing unlocked copy to '{path.as_posix()}', you may want to lock it or clear it before use"
+            msg = f"Writing unlocked copy to '{str(path)}', you may want to lock it or clear it before use"
         else:
             _modify(content, lock=False, container="", command=[], print_difference=False)
-            msg = f"Writing cleared/reset copy to '{path.as_posix()}', you may want to add Containerfile and commands"
+            msg = f"Writing cleared/reset copy to '{str(path)}', you may want to add Containerfile and commands"
         print(msg)
-        path.write_text("\n".join(content) + "\n")
+        _write_content(path, content)
         path.chmod(0o755)
     elif cmd in ["print"]:
         if len(options) != 1:
@@ -379,8 +389,58 @@ def main_(args: list[str]) -> None:
             (line.removeprefix(_v) for line in new if line.startswith(_v)),
             "Cannot determine new version",
         )
-        Path(__file__).write_text("\n".join(new) + "\n")
+        _write_content(__file__, new)
         print(f'Update successful: "{oldv}" -> {newv}')
+    elif cmd in ["version", "--version", "-version"]:
+        if len(options) == 0:
+            print(f"podded - {__version__}")
+        elif len(options) == 1 and options[0] in [
+            "diff",
+            "--diff",
+            "showdiff",
+        ]:
+            new = _read_newest()
+            _v = "__version__ ="
+            newv = next(
+                (line.removeprefix(_v).strip().strip("\"'") for line in new if line.startswith(_v)),
+                None,
+            )
+            diff = []
+            if newv is None:
+                print(f"podded - {__version__} - ?")
+                print("WARNING: Cannot determine newest version")
+            elif __version__ != newv:
+                print(f"podded - {__version__} - old version (newest is {newv})")
+                print("INFO: Use command 'update-from-repo' to update to newest version")
+            else:
+                current = _read_self()
+                _modify(
+                    current,
+                    lock=False,
+                    container="",
+                    command=[],
+                    print_difference=False,
+                )
+                _modify(new, lock=False, container="", command=[], print_difference=False)
+                if current == new:
+                    print(f"podded - {__version__} - unchanged")
+                else:
+                    print(f"podded - {__version__} - MODIFIED")
+                    if options[0] in ["showdiff"]:
+                        diff = difflib.ndiff(current, new)
+                        print(
+                            "\n".join(
+                                filter(
+                                    lambda line: any(line.startswith(c) for c in "+?-"),
+                                    diff,
+                                )
+                            ),
+                            end="",
+                        )
+                    else:
+                        print("INFO: Use 'showdiff' to show the changed lines")
+        else:
+            raise ArgumentError(f"Expected at most 1 argument diff, got {len(options)}")
     else:
         print("Use command 'help' for usage")
         raise ArgumentError(f"Unknown command: {cmd}")
