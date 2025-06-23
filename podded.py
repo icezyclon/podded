@@ -20,7 +20,7 @@ For more details see: https://github.com/icezyclon/podded
 # To prevent self-modification, set LOCK = True or use the 'lock' command.
 # You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 
-__version__ = "0.14"
+__version__ = "0.15"
 
 import difflib
 import os
@@ -51,7 +51,7 @@ RUN_IT_COMMAND = ["podman", "run", "-it", "--name", TAG]  # + COMMAND
 STOP_COMMAND = ["podman", "stop", TAG]
 # fallback to ghcr.io/containers/podlet container if podlet is not locally installed
 PODLET_COMMAND = ["podlet", "-i"] + RUN_COMMAND + []  # + COMMAND
-PODLET_FALLBACK = ["podman", "run", "--rm", "ghcr.io/containers/podlet"] + RUN_COMMAND
+PODLET_FALLBACK = ["podman", "run", "--rm", "ghcr.io/containers/podlet"]  # + PODLET_COMMAND
 QUADLET_DIR = Path.home() / ".config" / "containers" / "systemd"
 UPDATE_REPO: str = "https://raw.githubusercontent.com/icezyclon/podded/main/podded.py"
 
@@ -447,7 +447,9 @@ def main_(args: list[str]) -> None:
 
 
 def main(args: list[str]) -> int:
+    oldcwd = Path.cwd()
     try:
+        os.chdir(Path(__file__).parent)
         main_(args)
     except ArgumentError as e:
         print(
@@ -478,6 +480,8 @@ def main(args: list[str]) -> int:
 
         traceback.print_exc()
         return 9
+    finally:
+        os.chdir(oldcwd)
     return 0
 
 
