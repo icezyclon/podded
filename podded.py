@@ -20,7 +20,7 @@ For more details see: https://github.com/icezyclon/podded
 # To prevent self-modification, set LOCK = True or use the 'lock' command.
 # You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 
-__version__ = "0.15"
+__version__ = "0.16"
 
 import difflib
 import os
@@ -74,7 +74,7 @@ def _modify(
     lock: bool | None = None,
     container: str | None = None,
     command: list[str] | None = None,
-    print_difference: bool = True,
+    print_diff: bool = True,
 ) -> dict[str, bool | str | list[str]]:
     MARKER_START = "# === {} START ==="
     MARKER_END = "# === {} END ==="
@@ -86,14 +86,14 @@ def _modify(
         old_block = content[starti:endi]
         if old_block != new_block:
             content[starti:endi] = new_block
-            if print_difference:
+            if print_diff:
                 print(f"{var} block changed:")
                 print("- ", end="")
                 print("\n- ".join(old_block).rstrip())
                 print("+ ", end="")
                 print("\n+ ".join(new_block).rstrip())
                 print("")
-        elif print_difference:
+        elif print_diff:
             print(f"{var} unchanged")
 
     if lock is not None:
@@ -151,6 +151,36 @@ def _self_modify(
     new_variables = _modify(content, lock=lock, container=container, command=command)
     globals().update(new_variables)
     _write_content(__file__, content)
+
+
+def _input_via_editor(content: str):
+    editor = os.environ.get("EDITOR", "nano")
+    with tempfile.NamedTemporaryFile("w+t", delete=False) as f:
+        f.write(content)
+        f.close()
+        try:
+            subprocess.run([editor, f.name], check=True)
+        except subprocess.CalledProcessError as e:
+            raise IOError("{} exited with code {}.".format(editor, e.returncode))
+        with open(f.name) as g:
+            return g.read()
+
+
+def _edit(var_key: str):
+    value = globals()[var_key]
+    if var_key == "CONTAINERFILE":
+        value = value.lstrip()
+    if isinstance(value, Path):
+        new = Path(_input_via_editor(str(value)))
+    elif isinstance(value, list):
+        new = shlex.split(_input_via_editor(shlex.join(value)))
+    elif isinstance(value, bool):
+        new = _input_via_editor(str(value).lower()).lower().strip() == "true"
+    elif isinstance(value, str):
+        new = _input_via_editor(value)
+    else:
+        raise TypeError(f"Unknown type for editing: {type(value)}")
+    return new if new != value or var_key in ["LOCK", "CONTAINERFILE", "COMMAND"] else None
 
 
 def build_cmd(should_return: bool):
@@ -214,6 +244,8 @@ def main_(args: list[str]) -> None:
             f"  run[-it] COMMAND*   Save COMMAND of form '{' '.join(RUN_COMMAND)} COMMAND*' and run it [in interactive mode]",
             "  build-copy PATH     Save the *content* of Containerfile/Dockerfile at PATH",
             "  build PATH          Save the *content* of Containerfile/Dockerfile at PATH and build it",
+            "  edit command/build  Edit the command or build file in EDITOR respectively, saving it back once done",
+            # "  edit GLOBAL_VAR     Edit a global var, saving it back once done (will be removed by 'update')",
             "  lock [force]        Lock the build and run commands and prevent further self-modification",
             "  clear [build/run]   Clear saved Containerfile, run-command or both",
             "  update-from-repo    Download and update this script with the most up-to-date podded.py from Github",
@@ -342,10 +374,10 @@ def main_(args: list[str]) -> None:
             raise ArgumentError(f"PATH '{str(path)}' does already exist")
         content = _read_self()
         if cmd == "copy":
-            _modify(content, lock=False, print_difference=False)
+            _modify(content, lock=False, print_diff=False)
             msg = f"Writing unlocked copy to '{str(path)}', you may want to lock it or clear it before use"
         else:
-            _modify(content, lock=False, container="", command=[], print_difference=False)
+            _modify(content, lock=False, container="", command=[], print_diff=False)
             msg = f"Writing cleared/reset copy to '{str(path)}', you may want to add Containerfile and commands"
         print(msg)
         _write_content(path, content)
@@ -383,7 +415,13 @@ def main_(args: list[str]) -> None:
         with urllib.request.urlopen(UPDATE_REPO, timeout=10) as response:
             new = response.read().decode().rstrip().replace("\r", "").split("\n")
         oldv = __version__
-        _modify(new, lock=LOCK, container=CONTAINERFILE.lstrip(), command=COMMAND)
+        _modify(
+            new,
+            lock=LOCK,
+            container=CONTAINERFILE.lstrip(),
+            command=COMMAND,
+            print_diff=False,
+        )
         _v = "__version__ ="
         newv = next(
             (line.removeprefix(_v) for line in new if line.startswith(_v)),
@@ -413,21 +451,15 @@ def main_(args: list[str]) -> None:
                 print(f"podded - {__version__} - old version (newest is {newv})")
                 print("INFO: Use command 'update-from-repo' to update to newest version")
             else:
-                current = _read_self()
-                _modify(
-                    current,
-                    lock=False,
-                    container="",
-                    command=[],
-                    print_difference=False,
-                )
-                _modify(new, lock=False, container="", command=[], print_difference=False)
-                if current == new:
+                curr = _read_self()
+                _modify(curr, lock=False, container="", command=[], print_diff=False)
+                _modify(new, lock=False, container="", command=[], print_diff=False)
+                if curr == new:
                     print(f"podded - {__version__} - unchanged")
                 else:
                     print(f"podded - {__version__} - MODIFIED")
                     if options[0] in ["showdiff"]:
-                        diff = difflib.ndiff(current, new)
+                        diff = difflib.ndiff(curr, new)
                         print(
                             "\n".join(
                                 filter(
@@ -441,6 +473,27 @@ def main_(args: list[str]) -> None:
                         print("INFO: Use 'showdiff' to show the changed lines")
         else:
             raise ArgumentError(f"Expected at most 1 argument diff, got {len(options)}")
+    elif cmd in ["edit"]:
+        if LOCK:
+            if len(options) == 1 and options[0].lower() == "lock":
+                return _self_modify(lock=_edit("LOCK"))
+            raise Locked
+        gvars = filter(
+            lambda s: s.isupper() and s.lower() not in ["lock", "containerfile", "command"],
+            globals().keys(),
+        )
+        if len(options) == 0:
+            print(*("command", "build", *gvars), sep="\n")
+        elif len(options) == 1 and options[0] in ["command", "cmd", "c"]:
+            _self_modify(command=_edit("COMMAND"))
+        elif len(options) == 1 and options[0] in ["build", "b", "file"]:
+            _self_modify(container=_edit("CONTAINERFILE"))
+        elif len(options) == 1 and options[0] in gvars:
+            raise NotImplementedError
+        else:
+            raise ArgumentError(
+                f"Expected at most 1 argument command/build/VAR, got {len(options)}"
+            )
     else:
         print("Use command 'help' for usage")
         raise ArgumentError(f"Unknown command: {cmd}")
