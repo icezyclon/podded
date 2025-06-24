@@ -20,7 +20,7 @@ For more details see: https://github.com/icezyclon/podded
 # To prevent self-modification, set LOCK = True or use the 'lock' command.
 # You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 
-__version__ = "0.16"
+__version__ = "0.17"
 
 import difflib
 import os
@@ -49,10 +49,28 @@ BUILD_COMMAND = ["podman", "build", "-t", TAG]  # + <temp-Containerfile-dir>
 RUN_COMMAND = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
 RUN_IT_COMMAND = ["podman", "run", "-it", "--name", TAG]  # + COMMAND
 STOP_COMMAND = ["podman", "stop", TAG]
+PODLET_COMMAND = ["podlet", "-i", "-a"] + RUN_COMMAND + []  # + COMMAND
 # fallback to ghcr.io/containers/podlet container if podlet is not locally installed
-PODLET_COMMAND = ["podlet", "-i"] + RUN_COMMAND + []  # + COMMAND
-PODLET_FALLBACK = ["podman", "run", "--rm", "ghcr.io/containers/podlet"]  # + PODLET_COMMAND
+# (-v and -w for correct resolution of absolute paths (-a option))
+PODLET_FALLBACK = [
+    "podman",
+    "run",
+    "--rm",
+    "-v",
+    f"{(_cdir := str(Path(__file__).parent.resolve()))}:{_cdir}:ro",
+    "-w",
+    _cdir,
+    "ghcr.io/containers/podlet",
+]  # + PODLET_COMMAND
 QUADLET_DIR = Path.home() / ".config" / "containers" / "systemd"
+QUADLET_TEMPLATE: str = """
+[Service]
+Restart=always
+RestartSec=10
+
+[Timer]
+OnStartupSec=60
+"""
 UPDATE_REPO: str = "https://raw.githubusercontent.com/icezyclon/podded/main/podded.py"
 
 
@@ -180,7 +198,9 @@ def _edit(var_key: str):
         new = _input_via_editor(value)
     else:
         raise TypeError(f"Unknown type for editing: {type(value)}")
-    return new if new != value or var_key in ["LOCK", "CONTAINERFILE", "COMMAND"] else None
+    if new == value:
+        print(f"{var_key} unchanged")
+    return new if new != value else None
 
 
 def build_cmd(should_return: bool):
@@ -237,7 +257,7 @@ def main_(args: list[str]) -> None:
             f"  status              Show status of systemd service ({TAG})",
             "  enable              Generate, enable and start systemd service for user",
             "  disable             Disable and stop systemd service",
-            # "  quadlet             Generate the quadlet (.container file) and print to stdout",
+            "  quadlet             Generate the quadlet (.container file) and print it to stdout",
             "",
             "Self-Modifying Commands:" + (" (LOCKED)" if LOCK else ""),
             f"  command COMMAND*    Save COMMAND of form '{' '.join(RUN_COMMAND)} COMMAND*'",
@@ -282,29 +302,52 @@ def main_(args: list[str]) -> None:
     elif cmd in ["stop"]:
         print(shlex.join(STOP_COMMAND))
         os.execvp(STOP_COMMAND[0], STOP_COMMAND[0:])
-    elif cmd in ["enable", "disable", "status"]:
+    elif cmd in ["enable", "disable", "status", "quadlet"]:
+        if len(options) != 0:
+            raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
         path = QUADLET_DIR / (TAG + ".container")
-        if cmd == "enable":
-            print(
-                shlex.join(
-                    excmd := (
-                        (
-                            PODLET_COMMAND
-                            if shutil.which(PODLET_COMMAND[0]) is not None
-                            else PODLET_FALLBACK + PODLET_COMMAND[1:]
-                        )
-                        + COMMAND
+        if cmd in ["enable", "quadlet"]:
+            finalcmd = shlex.join(
+                excmd := (
+                    (
+                        PODLET_COMMAND
+                        if shutil.which(PODLET_COMMAND[0]) is not None
+                        else PODLET_FALLBACK + PODLET_COMMAND[1:]
                     )
+                    + COMMAND
                 )
             )
+            print(("# " if cmd == "quadlet" else "") + finalcmd)
             gen = subprocess.run(excmd, check=True, text=True, capture_output=True)
+
+            def _clean(s: str):
+                return list(map(str.strip, s.strip().replace("\r", "").split("\n")))
+
+            if QUADLET_TEMPLATE and QUADLET_TEMPLATE.lstrip():
+                quadlet, template = (_clean(gen.stdout), _clean(QUADLET_TEMPLATE.lstrip()))
+                tsec = [(i, v) for i, v in enumerate(template) if v.startswith("[")]
+                tsec.append((len(template), None))
+                if tsec and tsec[0][0] > 0:
+                    tsec.insert(0, (0, None))
+                for (i, v), (ie, ve) in zip(tsec, tsec[1:]):
+                    if v in quadlet and (qi := quadlet.index(v)) > -1:
+                        quadlet = quadlet[:qi] + template[i:ie] + quadlet[qi + 1 :]
+                    else:
+                        quadlet = template[i:ie] + quadlet
+                quadlet = "\n".join(quadlet)
+            else:
+                quadlet = gen.stdout
+
+            if cmd == "quadlet":
+                return print(quadlet)
+
             if not QUADLET_DIR.exists():
                 QUADLET_DIR.mkdir(parents=True)
             print(
                 f"Writing quadlet to '{str(path)}'"
                 + (" (overwriting existing quadlet)" if path.exists() else "")
             )
-            path.write_text(gen.stdout)
+            path.write_text("# " + finalcmd + "\n" + quadlet)
             print(shlex.join(excmd := ["systemctl", "--user", "daemon-reload"]))
             subprocess.run(excmd, check=True)
             print(shlex.join(excmd := ["systemctl", "--user", "start", TAG]))

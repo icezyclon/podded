@@ -74,6 +74,8 @@ This does two things:
 * It **saves** the content of the `Containerfile` *inside* of `webserver.dev`  no need to keep the separate file afterwards.
 * Builds the container image using `podman build ...`
 
+> You can also use `podded edit build` to write/modify your `Containerfile` with your editor!
+
 By default, the image name is automatically derived from the script filename:
 
 `webserver.dev.py` → image name: `webserver`
@@ -89,10 +91,12 @@ After saving it once, you won't need the Containerfile as a separate file anymor
 **Step 2: Run (interactively) with command the first time**
 
 ```bash
-./containers/webserver.dev run-it -p 8080:80 -v $(realpath www):/usr/share/nginx/html nginx:latest
+./containers/webserver.dev run-it -p 8080:80 -v ./www:/usr/share/nginx/html webserver:latest
 ```
 You can pass any `podman run` command you want - `podded` records it for later!
-> Use *absolute paths* for systemd to find the mounted folders!
+> Use *absolute paths* or use *relative paths from the podded file*! Relative paths will be transformed to absolute ones for systemd (to be relative to the podded file)
+
+> You can also use `podded edit command` to write/modify your `command` with your editor!
 
 To run again there is no need to type the full command!
 ```bash
@@ -118,6 +122,13 @@ This stops the service and removes the generated quadlet file again.
 ./containers/webserver.dev status
 ```
 This checks the status of the running service.
+
+```bash
+./containers/webserver.dev quadlet
+```
+Or just generate the file and do with it as you like.
+
+> Note that the global variable `QUADLET_TEMPLATE` will be merged into the generated file! By default this includes options such as `restart=always` and `OnStartupSec=60` - all of which can be configured or turned off in the file if not desirable!
 
 **Step 4: Lock changes**
 
