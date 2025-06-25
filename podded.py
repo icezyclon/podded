@@ -20,7 +20,7 @@ For more details see: https://github.com/icezyclon/podded
 # To prevent self-modification, set LOCK = True or use the 'lock' command.
 # You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 
-__version__ = "0.17"
+__version__ = "0.18"
 
 import difflib
 import os
@@ -184,20 +184,37 @@ def _input_via_editor(content: str):
             return g.read()
 
 
+def _var_to_user_str(var_key: str) -> str:
+    value = globals()[var_key]
+    if isinstance(value, Path):
+        return str(value)
+    elif isinstance(value, list):
+        return shlex.join(value)
+    elif isinstance(value, bool):
+        return str(value).lower()
+    elif isinstance(value, str):
+        return value.lstrip()
+    else:
+        raise TypeError(f"Unknown var type for user str output: {type(value)}")
+
+
+def _user_str_to_var(var_key: str, value: str):
+    _curval = globals()[var_key]
+    if isinstance(_curval, Path):
+        return Path(value)
+    elif isinstance(_curval, list):
+        return shlex.split(value)
+    elif isinstance(_curval, bool):
+        return value.lower().strip() == "true"
+    elif isinstance(_curval, str):
+        return "\n" + value.lstrip()
+    else:
+        raise TypeError(f"Unknown var type for internal var: {type(_curval)}")
+
+
 def _edit(var_key: str):
     value = globals()[var_key]
-    if var_key == "CONTAINERFILE":
-        value = value.lstrip()
-    if isinstance(value, Path):
-        new = Path(_input_via_editor(str(value)))
-    elif isinstance(value, list):
-        new = shlex.split(_input_via_editor(shlex.join(value)))
-    elif isinstance(value, bool):
-        new = _input_via_editor(str(value).lower()).lower().strip() == "true"
-    elif isinstance(value, str):
-        new = _input_via_editor(value)
-    else:
-        raise TypeError(f"Unknown type for editing: {type(value)}")
+    new = _user_str_to_var(var_key, _input_via_editor(_var_to_user_str(var_key)))
     if new == value:
         print(f"{var_key} unchanged")
     return new if new != value else None
@@ -248,9 +265,10 @@ def main_(args: list[str]) -> None:
             "  run[-it]            Run the last saved command [in interactive mode]",
             "  all[-it]            Build saved Containerfile and run saved command [in interactive mode]",
             f"  stop                Stop the running container with name '{TAG}'",
-            f"  new PATH/NAME       Create a new cleared/reset copy of {Path(__file__).name} at PATH/NAME",
+            f"  new PATH/NAME       Create a new cleared copy of {Path(__file__).name} at PATH/NAME (copy + clear)",
             f"  copy PATH/NAME      Create a new unlocked copy of {Path(__file__).name} at PATH/NAME",
-            "  print (f/b/r)       Print the saved Container(f)ile, the (b)uild command or the (r)un command to stdout",
+            "  print               Print all printable variables/keys to stdout",
+            "  print cmd/build/VAR Print the saved run command(cmd), Containerfile(build) or global VAR to stdout",
             "  version [diff]      Print the version of this script to stdout [checking against the newest version online]",
             "",
             "Systemd commands:",
@@ -264,7 +282,7 @@ def main_(args: list[str]) -> None:
             f"  run[-it] COMMAND*   Save COMMAND of form '{' '.join(RUN_COMMAND)} COMMAND*' and run it [in interactive mode]",
             "  build-copy PATH     Save the *content* of Containerfile/Dockerfile at PATH",
             "  build PATH          Save the *content* of Containerfile/Dockerfile at PATH and build it",
-            "  edit command/build  Edit the command or build file in EDITOR respectively, saving it back once done",
+            "  edit [cmd/build]    Edit the command or build file in EDITOR respectively, saving it back once done",
             # "  edit GLOBAL_VAR     Edit a global var, saving it back once done (will be removed by 'update')",
             "  lock [force]        Lock the build and run commands and prevent further self-modification",
             "  clear [build/run]   Clear saved Containerfile, run-command or both",
@@ -415,6 +433,8 @@ def main_(args: list[str]) -> None:
         path = Path(options[0]).resolve()
         if path.exists():
             raise ArgumentError(f"PATH '{str(path)}' does already exist")
+        if not path.parent.is_dir():
+            raise ArgumentError(f"'{str(path.parent)}' does not exist or is not a directory")
         content = _read_self()
         if cmd == "copy":
             _modify(content, lock=False, print_diff=False)
@@ -425,22 +445,6 @@ def main_(args: list[str]) -> None:
         print(msg)
         _write_content(path, content)
         path.chmod(0o755)
-    elif cmd in ["print"]:
-        if len(options) != 1:
-            raise ArgumentError(f"Expected 1 argument OPTION (f/b/r), got {len(options)}")
-        elif options[0].lower() in [
-            "f",
-            "file",
-            "containerfile",
-            "dockerfile",
-        ]:
-            print(CONTAINERFILE.lstrip())
-        elif options[0] in ["b", "build"]:
-            print(shlex.join(BUILD_COMMAND) + " <temp-Containerfile-dir>")
-        elif options[0] in ["r", "run", "cmd", "command"]:
-            print(shlex.join(RUN_COMMAND + COMMAND))
-        else:
-            raise ArgumentError(f"Unknown OPTION {options[0]}, expected f/b/r")
     elif cmd in ["update", "update-from-repo"]:
         if LOCK:
             print(
@@ -452,8 +456,8 @@ def main_(args: list[str]) -> None:
         print(
             "WARNING: While your CONTAINERFILE and COMMAND will be kept, any other modifications will be lost!"
         )
-        inp = input("Do you wish to proceed and update this file? [Y/n]")
-        if inp.lower() in ["n", "no", "abort", "exit"]:
+        inp = input("Do you wish to proceed and update this file? [Y/n]: ").strip().lower()
+        if inp in ["n", "no", "abort", "exit"]:
             raise ArgumentError("Aborted")
         with urllib.request.urlopen(UPDATE_REPO, timeout=10) as response:
             new = response.read().decode().rstrip().replace("\r", "").split("\n")
@@ -516,23 +520,34 @@ def main_(args: list[str]) -> None:
                         print("INFO: Use 'showdiff' to show the changed lines")
         else:
             raise ArgumentError(f"Expected at most 1 argument diff, got {len(options)}")
-    elif cmd in ["edit"]:
-        if LOCK:
-            if len(options) == 1 and options[0].lower() == "lock":
-                return _self_modify(lock=_edit("LOCK"))
-            raise Locked
+    elif cmd in ["print"]:
         gvars = filter(
             lambda s: s.isupper() and s.lower() not in ["lock", "containerfile", "command"],
             globals().keys(),
         )
         if len(options) == 0:
-            print(*("command", "build", *gvars), sep="\n")
+            print(*("cmd", "build", *gvars), sep="\n")
+        elif len(options) == 1 and options[0].lower() in ["command", "cmd", "c"]:
+            print(_var_to_user_str("COMMAND"))
+        elif len(options) == 1 and options[0].lower() in ["build", "b", "file"]:
+            print(_var_to_user_str("CONTAINERFILE"))
+        elif len(options) == 1 and options[0] in gvars:
+            print(_var_to_user_str(options[0]))
+        else:
+            raise ArgumentError(
+                f"Expected at most 1 argument command/build/VAR, got {len(options)}"
+            )
+    elif cmd in ["edit"]:
+        if LOCK:
+            if len(options) == 1 and options[0].lower() == "lock":
+                return _self_modify(lock=_edit("LOCK"))
+            raise Locked
+        if len(options) == 0:
+            print(*("cmd", "build"), sep="\n")
         elif len(options) == 1 and options[0] in ["command", "cmd", "c"]:
             _self_modify(command=_edit("COMMAND"))
         elif len(options) == 1 and options[0] in ["build", "b", "file"]:
             _self_modify(container=_edit("CONTAINERFILE"))
-        elif len(options) == 1 and options[0] in gvars:
-            raise NotImplementedError
         else:
             raise ArgumentError(
                 f"Expected at most 1 argument command/build/VAR, got {len(options)}"
