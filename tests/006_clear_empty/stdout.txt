@@ -1,0 +1,3 @@
+$ podded.py clear
+'BUILD' unchanged
+'COMMAND' unchanged

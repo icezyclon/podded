@@ -1,0 +1,31 @@
+$ podded.py command the meaning of life
+'COMMAND' modified
+- COMMAND = []
++ COMMAND = ["the", "meaning", "of", "life"]
+
+$ podded.py edit RUN_COMMAND
+'RUN_COMMAND' modified
+- RUN_COMMAND = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
++ RUN_COMMAND = ["podman", "<run-replace>", "-d", "--name", "podded"]
+
+$ podded.py lock force
+'LOCK' modified
+- LOCK = False
++ LOCK = True
+
+$ podded.py new newfile.py
+Writing cleared copy to '/tmp/<tempdir>/newfile.py', you may want to add Containerfile and commands
+$ podded.py copy copyfile.py
+Writing unlocked copy to '/tmp/<tempdir>/copyfile.py', you may want to lock it or clear it before use
+$ newfile.py print LOCK
+false
+$ newfile.py print COMMAND
+
+$ newfile.py print RUN_COMMAND
+podman '<run-replace>' -d --name podded
+$ copyfile.py print LOCK
+false
+$ copyfile.py print COMMAND
+the meaning of life
+$ copyfile.py print RUN_COMMAND
+podman '<run-replace>' -d --name podded

@@ -1,0 +1,7 @@
+podded.py lock force
+podded.py command test this
+podded.py run test this
+podded.py build-copy Containerfile
+podded.py build Containerfile
+podded.py edit RUN_COMMAND
+podded.py update

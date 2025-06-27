@@ -1,0 +1,2 @@
+$ podded.py asdfdoesnotexist
+INVALID ARGUMENT: Unknown command: asdfdoesnotexist

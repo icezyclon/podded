@@ -1,0 +1,53 @@
+$ podded.py build-copy Containerfile
+'BUILD' modified
+- BUILD = ""
++ BUILD = """
++ FROM ubuntu:24.04
++ 
++ RUN apt-get update && \
++     apt-get install -y --no-install-recommends \
++     openjdk-21-jre \
++     python3 \
++     && rm -rf /var/lib/apt/lists/*           
++ 
++ WORKDIR /app
++ 
++ CMD [ "python3" ]
++ """
+
+$ podded.py command here be dragons
+'COMMAND' modified
+- COMMAND = []
++ COMMAND = ["here", "be", "dragons"]
+
+$ podded.py all
+podman build -t podded /tmp/<tempdir>
+% ['podman', 'build', '-t', 'podded', '/tmp/<tempdir>']
+podman run -d --name podded here be dragons
+% ['podman', 'run', '-d', '--name', 'podded', 'here', 'be', 'dragons']
+$ podded.py all-it
+podman build -t podded /tmp/<tempdir>
+% ['podman', 'build', '-t', 'podded', '/tmp/<tempdir>']
+podman run -it --name podded here be dragons
+% ['podman', 'run', '-it', '--name', 'podded', 'here', 'be', 'dragons']
+$ podded.py clear
+'BUILD' modified
+- BUILD = """
+- FROM ubuntu:24.04
+- 
+- RUN apt-get update && \
+-     apt-get install -y --no-install-recommends \
+-     openjdk-21-jre \
+-     python3 \
+-     && rm -rf /var/lib/apt/lists/*           
+- 
+- WORKDIR /app
+- 
+- CMD [ "python3" ]
+- """
++ BUILD = ""
+
+'COMMAND' modified
+- COMMAND = ["here", "be", "dragons"]
++ COMMAND = []
+

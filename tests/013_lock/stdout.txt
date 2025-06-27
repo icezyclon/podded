@@ -1,0 +1,12 @@
+$ podded.py lock force
+'LOCK' modified
+- LOCK = False
++ LOCK = True
+
+$ podded.py command test this
+$ podded.py run test this
+$ podded.py build-copy Containerfile
+$ podded.py build Containerfile
+$ podded.py edit RUN_COMMAND
+$ podded.py update
+WARNING: Updating would self-modify this script, which is currently LOCKED. Please open '/tmp/<tempdir>/podded.py' and set LOCK = False to proceed.

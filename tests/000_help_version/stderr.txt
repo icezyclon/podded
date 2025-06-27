@@ -1,0 +1,2 @@
+$ podded.py help
+$ podded.py version

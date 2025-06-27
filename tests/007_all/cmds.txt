@@ -1,0 +1,5 @@
+podded.py build-copy Containerfile
+podded.py command here be dragons
+podded.py all
+podded.py all-it
+podded.py clear

@@ -1,0 +1,28 @@
+$ podded.py status
+systemctl --user status podded
+% ['systemctl', '--user', 'status', 'podded']
+$ podded.py enable
+podman run --rm -v /tmp/<tempdir>:/tmp/<tempdir>:ro -w /tmp/<tempdir> ghcr.io/containers/podlet -i -a podman run -d --name podded
+% ['podman', 'run', '--rm', '-v', '/tmp/<tempdir>:/tmp/<tempdir>:ro', '-w', '/tmp/<tempdir>', 'ghcr.io/containers/podlet', '-i', '-a', 'podman', 'run', '-d', '--name', 'podded']
+Writing quadlet to '/home/loki/.config/containers/systemd/podded.container'
+systemctl --user daemon-reload
+% ['systemctl', '--user', 'daemon-reload']
+systemctl --user start podded
+% ['systemctl', '--user', 'start', 'podded']
+INFO: Make sure to enable 'loginctl enable-linger' to start process on boot and not on session start
+$ podded.py disable
+systemctl --user stop podded
+% ['systemctl', '--user', 'stop', 'podded']
+Deleted '/home/loki/.config/containers/systemd/podded.container'
+systemctl --user daemon-reload
+% ['systemctl', '--user', 'daemon-reload']
+$ podded.py quadlet
+# podman run --rm -v /tmp/<tempdir>:/tmp/<tempdir>:ro -w /tmp/<tempdir> ghcr.io/containers/podlet -i -a podman run -d --name podded
+% ['podman', 'run', '--rm', '-v', '/tmp/<tempdir>:/tmp/<tempdir>:ro', '-w', '/tmp/<tempdir>', 'ghcr.io/containers/podlet', '-i', '-a', 'podman', 'run', '-d', '--name', 'podded']
+[Timer]
+OnStartupSec=60
+[Service]
+Restart=always
+RestartSec=10
+
+<proxy-stdout>

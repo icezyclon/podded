@@ -1,0 +1,5 @@
+--- podded.py
++++ podded.py
+@@ @@
+-COMMAND = []
++COMMAND = ["here", "be", "dragons"]

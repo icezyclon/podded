@@ -1,0 +1,11 @@
+$ podded.py run
+$ podded.py run another command be
+'COMMAND' modified
+- COMMAND = []
++ COMMAND = ["another", "command", "be"]
+
+podman run -d --name podded another command be
+% ['podman', 'run', '-d', '--name', 'podded', 'another', 'command', 'be']
+$ podded.py run
+podman run -d --name podded another command be
+% ['podman', 'run', '-d', '--name', 'podded', 'another', 'command', 'be']

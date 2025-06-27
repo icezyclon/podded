@@ -1,0 +1,5 @@
+$ podded.py command here be dragons
+'COMMAND' modified
+- COMMAND = []
++ COMMAND = ["here", "be", "dragons"]
+

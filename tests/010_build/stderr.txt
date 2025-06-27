@@ -1,0 +1,4 @@
+$ podded.py build
+MISSING: The Containerfile has not been provided yet, use 'build PATH' to save one
+$ podded.py build Containerfile
+$ podded.py build

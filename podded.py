@@ -19,9 +19,11 @@ For more details see: https://github.com/icezyclon/podded
 # To allow for this in a single file, this script can self-modify within "# === SECTION START/END ===" marked sections.
 # To prevent self-modification, set LOCK = True or use the 'lock' command.
 # You may still/also change the marked sections by hand, but take care to NOT remove these comments.
+# Also, all global config variables are of types: Path, list[str], str, bool, int - no other types are allowed
 
-__version__ = "0.18"
+__version__ = "1.0"
 
+import ast
 import difflib
 import os
 import shlex
@@ -32,19 +34,19 @@ import tempfile
 import urllib.request
 from pathlib import Path
 
-# === LOCK START ===
-LOCK: bool = False
-# === LOCK END ===
-# === CONTAINERFILE START ===
-CONTAINERFILE: str = """
-"""
-# === CONTAINERFILE END ===
-# === COMMAND START ===
-COMMAND: list[str] = []
-# === COMMAND END ===
+_CDIR = Path(__file__).parent.resolve().as_posix()
 
-# the following config will not be changed via commands and may be edited by hand:
-TAG: str = Path(__file__).name.split(".", 1)[0].replace(" ", "_")
+# === START SELF-MODIFYING CONFIG ===
+# NOTE: These main variables WILL be preserved on 'update' and cleared with 'clear'
+LOCK = False
+BUILD = ""
+COMMAND = []
+# === END SELF-MODIFYING CONFIG ===
+
+# === START REGULAR CONFIG ===
+# NOTE: These variables will NOT be preserved on 'update' and NOT modified by 'clear'
+# WARN: On modifications with 'edit' only hardcoded values will be written back, use with care or edit manually!
+TAG = Path(__file__).name.split(".", 1)[0].replace(" ", "_")
 BUILD_COMMAND = ["podman", "build", "-t", TAG]  # + <temp-Containerfile-dir>
 RUN_COMMAND = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
 RUN_IT_COMMAND = ["podman", "run", "-it", "--name", TAG]  # + COMMAND
@@ -57,13 +59,13 @@ PODLET_FALLBACK = [
     "run",
     "--rm",
     "-v",
-    f"{(_cdir := str(Path(__file__).parent.resolve()))}:{_cdir}:ro",
+    f"{_CDIR}:{_CDIR}:ro",
     "-w",
-    _cdir,
+    _CDIR,
     "ghcr.io/containers/podlet",
 ]  # + PODLET_COMMAND
 QUADLET_DIR = Path.home() / ".config" / "containers" / "systemd"
-QUADLET_TEMPLATE: str = """
+QUADLET_TEMPLATE = """
 [Service]
 Restart=always
 RestartSec=10
@@ -71,7 +73,8 @@ RestartSec=10
 [Timer]
 OnStartupSec=60
 """
-UPDATE_REPO: str = "https://raw.githubusercontent.com/icezyclon/podded/main/podded.py"
+UPDATE_REPO = "https://raw.githubusercontent.com/icezyclon/podded/main/podded.py"
+# === END REGULAR CONFIG ===
 
 
 class ArgumentError(Exception):
@@ -86,89 +89,91 @@ class NotProvided(Exception):
     pass
 
 
-def _modify(
-    content: list[str],
-    *,
-    lock: bool | None = None,
-    container: str | None = None,
-    command: list[str] | None = None,
-    print_diff: bool = True,
-) -> dict[str, bool | str | list[str]]:
-    MARKER_START = "# === {} START ==="
-    MARKER_END = "# === {} END ==="
-    variables: dict[str, bool | str | list[str]] = {}
-
-    def find_replace(var: str, new_block: list[str]) -> None:
-        starti = content.index(MARKER_START.format(var)) + 1
-        endi = content.index(MARKER_END.format(var), starti)
-        old_block = content[starti:endi]
-        if old_block != new_block:
-            content[starti:endi] = new_block
-            if print_diff:
-                print(f"{var} block changed:")
-                print("- ", end="")
-                print("\n- ".join(old_block).rstrip())
-                print("+ ", end="")
-                print("\n+ ".join(new_block).rstrip())
-                print("")
-        elif print_diff:
-            print(f"{var} unchanged")
-
-    if lock is not None:
-        var = "LOCK"
-        assert isinstance(lock, bool), f"{var} must be of type bool, was {type(lock)}"
-        find_replace(var, [f"{var}: bool = {bool(lock)}"])
-        variables[var] = lock
-
-    if container is not None:
-        var = "CONTAINERFILE"
-        assert isinstance(container, str), f"{var} must be of type str, was {type(container)}"
-        new_container = (
-            [f'{var}: str = """']
-            + list(map(lambda s: repr(s)[1:-1], container.splitlines()))
-            + ['"""']
-        )
-        find_replace(var, new_container)
-        variables[var] = "\n".join(new_container[1:-1])
-
-    if command is not None:
-        var = "COMMAND"
-        assert isinstance(command, list) and all(isinstance(el, str) for el in command), (
-            f"{var} must be of type list[str], was {type(command)} with all str: {all(isinstance(el, str) for el in command)}"
-        )
-        # [f"{var}: list[str] = {command}"]
-        if command:
-            new_command = [f"{var}: list[str] = ["] + list(f"    {el!r}," for el in command) + ["]"]
+def _format_assignment(varname: str, value) -> str:
+    MAX_LINE_WIDTH = 100
+    if isinstance(value, str):
+        value = value.strip()
+        single_line = f"{varname} = {repr(value)}"
+        if "\n" in value or len(single_line) > MAX_LINE_WIDTH:
+            escaped = value.replace('"""', '\\"\\"\\"')
+            return f'{varname} = """\n{escaped}\n"""'
         else:
-            new_command = [f"{var}: list[str] = []"]
-        find_replace(var, new_command)
-        variables[var] = command
-    return variables
+            return f"""{varname} = {repr(value).replace("'", '"')}"""
+    elif isinstance(value, list) and all(isinstance(x, str) for x in value):
+        if len(f"{varname} = {repr(value)}") <= MAX_LINE_WIDTH:
+            return f"""{varname} = [{", ".join(f'"{s}"' for s in value)}]"""
+        else:
+            lines = [f"{varname} = ["] + [f'    "{item}",' for item in value] + ["]"]
+            return "\n".join(lines)
+    elif isinstance(value, Path):
+        return f'{varname} = Path("{value.as_posix()}")'
+    elif isinstance(value, (int, bool)):
+        return f"{varname} = {repr(value)}"
+    else:
+        raise TypeError(f"Unsupported formatting for value type: {type(value).__name__}")
 
 
-def _read_self() -> list[str]:
-    return Path(__file__).read_text().splitlines()
+def _modify_variable(src: str, varname: str, new_value, *, plevel: int = 1) -> str:
+    # Scan only top-level (global) assignments
+    for node in ast.parse(src).body:
+        if isinstance(node, ast.Assign):
+            if len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+                if node.targets[0].id == varname:
+                    target_node = node
+                    break
+        elif isinstance(node, ast.AnnAssign):
+            # annotations are NOT preserved
+            if isinstance(node.target, ast.Name):
+                if node.target.id == varname:
+                    target_node = node
+                    break
+    else:
+        raise ValueError(f"Variable '{varname}' not found.")
+
+    lines = src.splitlines()
+    new_code = _format_assignment(varname, new_value)
+    start_line = target_node.lineno - 1
+    end_line = target_node.end_lineno
+    new_code_lines = new_code.splitlines()
+    new_lines = lines[:start_line] + new_code_lines + lines[end_line:]
+    if plevel:
+        print(f"'{varname}' modified")
+    if plevel > 1:
+        print("- ", end="")
+        print("\n- ".join(lines[start_line:end_line]).rstrip())
+        print("+ ", end="")
+        print("\n+ ".join(new_code_lines).rstrip())
+        print("")
+    return "\n".join(new_lines) + "\n"
 
 
-def _read_newest() -> list[str]:
-    with urllib.request.urlopen(UPDATE_REPO, timeout=10) as response:
-        return response.read().decode().rstrip().replace("\r", "").split("\n")
+def _modify(src: str, *, plevel: int = 1, **kwargs) -> tuple[str, dict]:
+    kwargs = {k.upper(): v for k, v in kwargs.items()}
+    updates = {}
+    for varname, newval in kwargs.items():
+        if newval is None:
+            if plevel:
+                print(f"'{varname}' unchanged")
+            continue
+        newsrc = _modify_variable(src, varname, newval, plevel=plevel)
+        if src != newsrc:
+            updates[varname] = newval
+            src = newsrc
+    return src, updates
 
 
-def _write_content(path: str | Path, content: list[str]):
-    Path(path).write_text("\n".join(content) + "\n")
-
-
-def _self_modify(
-    *,
-    lock: bool | None = None,
-    container: str | None = None,
-    command: list[str] | None = None,
-) -> None:
-    content = _read_self()
-    new_variables = _modify(content, lock=lock, container=container, command=command)
-    globals().update(new_variables)
-    _write_content(__file__, content)
+def _self_modify(**kwargs) -> None:
+    kwargs = {k.upper(): v for k, v in kwargs.items()}
+    content = Path(__file__).read_text()
+    for varname, newval in dict(kwargs).items():
+        if varname not in globals().keys():
+            raise KeyError(f"Unknown variable: {varname}")
+        curval = globals()[varname]
+        if curval.strip() == newval.strip() if isinstance(curval, str) else curval == newval:
+            kwargs[varname] = None
+    newsrc, newvars = _modify(content, plevel=2, **kwargs)
+    Path(__file__).write_text(newsrc)
+    globals().update(newvars)
 
 
 def _input_via_editor(content: str):
@@ -177,51 +182,48 @@ def _input_via_editor(content: str):
         f.write(content)
         f.close()
         try:
-            subprocess.run([editor, f.name], check=True)
+            subprocess.run(shlex.split(editor) + [f.name], check=True)
         except subprocess.CalledProcessError as e:
             raise IOError("{} exited with code {}.".format(editor, e.returncode))
         with open(f.name) as g:
-            return g.read()
+            return g.read().strip()
 
 
 def _var_to_user_str(var_key: str) -> str:
     value = globals()[var_key]
     if isinstance(value, Path):
-        return str(value)
+        return value.as_posix()
     elif isinstance(value, list):
         return shlex.join(value)
     elif isinstance(value, bool):
         return str(value).lower()
     elif isinstance(value, str):
-        return value.lstrip()
+        return value.strip()
     else:
         raise TypeError(f"Unknown var type for user str output: {type(value)}")
 
 
 def _user_str_to_var(var_key: str, value: str):
     _curval = globals()[var_key]
+    value = value.strip()
     if isinstance(_curval, Path):
         return Path(value)
     elif isinstance(_curval, list):
         return shlex.split(value)
     elif isinstance(_curval, bool):
-        return value.lower().strip() == "true"
+        return value.lower() == "true"
     elif isinstance(_curval, str):
-        return "\n" + value.lstrip()
+        return value
     else:
         raise TypeError(f"Unknown var type for internal var: {type(_curval)}")
 
 
 def _edit(var_key: str):
-    value = globals()[var_key]
-    new = _user_str_to_var(var_key, _input_via_editor(_var_to_user_str(var_key)))
-    if new == value:
-        print(f"{var_key} unchanged")
-    return new if new != value else None
+    return _user_str_to_var(var_key, _input_via_editor(_var_to_user_str(var_key)))
 
 
-def build_cmd(should_return: bool):
-    if not CONTAINERFILE.strip():
+def build_cmd():
+    if not BUILD.strip():
         raise NotProvided(
             "The Containerfile has not been provided"
             + ("" if LOCK else " yet, use 'build PATH' to save one")
@@ -229,13 +231,10 @@ def build_cmd(should_return: bool):
 
     tmpdir_obj = tempfile.TemporaryDirectory(prefix="podded_")
     tmpdir = Path(tmpdir_obj.name)
-    (tmpdir / "Containerfile").write_text(CONTAINERFILE)
+    (tmpdir / "Containerfile").write_text(BUILD)
     excmd = BUILD_COMMAND + [str(tmpdir)]
     print(shlex.join(excmd))
-    if should_return:
-        subprocess.run(excmd, check=True)
-    else:
-        os.execvp(excmd[0], excmd)
+    subprocess.run(excmd, check=True)
 
 
 def run_cmd(interactive: bool):
@@ -246,7 +245,7 @@ def run_cmd(interactive: bool):
         )
     excmd = (RUN_IT_COMMAND if interactive else RUN_COMMAND) + COMMAND
     print(shlex.join(excmd))
-    os.execvp(excmd[0], excmd)
+    subprocess.run(excmd, cwd=_CDIR, check=True)
 
 
 def main_(args: list[str]) -> None:
@@ -290,7 +289,7 @@ def main_(args: list[str]) -> None:
             sep="\n",
         )
     elif cmd in ["all", "allit", "all-it"]:
-        build_cmd(should_return=True)
+        build_cmd()
         run_cmd(cmd != "all")
     elif cmd in ["run", "runit", "run-it"]:
         if len(options) != 0:
@@ -306,20 +305,20 @@ def main_(args: list[str]) -> None:
         _self_modify(command=options)
     elif cmd in ["build", "build-copy", "build-take", "build-keep"]:
         if len(options) == 0 and cmd == "build":
-            return build_cmd(should_return=False)
+            return build_cmd()
         if LOCK:
             raise Locked
         if len(options) != 1:
             raise ArgumentError(f"Expected 1 argument PATH, got {len(options)}")
         path = Path(options[0]).resolve()
         if not path.exists() or not path.is_file():
-            raise ArgumentError(f"PATH '{str(path)}' does not exist or is not a file")
-        _self_modify(container=path.read_text())
+            raise ArgumentError(f"PATH '{path.as_posix()}' does not exist or is not a file")
+        _self_modify(build=path.read_text())
         if cmd == "build":
-            build_cmd(should_return=False)
+            return build_cmd()
     elif cmd in ["stop"]:
         print(shlex.join(STOP_COMMAND))
-        os.execvp(STOP_COMMAND[0], STOP_COMMAND[0:])
+        subprocess.run(STOP_COMMAND)
     elif cmd in ["enable", "disable", "status", "quadlet"]:
         if len(options) != 0:
             raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
@@ -336,7 +335,7 @@ def main_(args: list[str]) -> None:
                 )
             )
             print(("# " if cmd == "quadlet" else "") + finalcmd)
-            gen = subprocess.run(excmd, check=True, text=True, capture_output=True)
+            gen = subprocess.run(excmd, cwd=_CDIR, check=True, text=True, capture_output=True)
 
             def _clean(s: str):
                 return list(map(str.strip, s.strip().replace("\r", "").split("\n")))
@@ -362,7 +361,7 @@ def main_(args: list[str]) -> None:
             if not QUADLET_DIR.exists():
                 QUADLET_DIR.mkdir(parents=True)
             print(
-                f"Writing quadlet to '{str(path)}'"
+                f"Writing quadlet to '{path.as_posix()}'"
                 + (" (overwriting existing quadlet)" if path.exists() else "")
             )
             path.write_text("# " + finalcmd + "\n" + quadlet)
@@ -376,11 +375,11 @@ def main_(args: list[str]) -> None:
         elif cmd == "disable":
             if not path.exists():
                 return print(
-                    f"File {path.name} not currently at '{str(QUADLET_DIR)}', nothing to disable"
+                    f"File {path.name} not currently at '{QUADLET_DIR.as_posix()}', nothing to disable"
                 )
             print(shlex.join(excmd := ["systemctl", "--user", "stop", TAG]))
             subprocess.run(excmd, check=True)
-            print(f"Deleted '{str(path)}'")
+            print(f"Deleted '{path.as_posix()}'")
             path.unlink()
             print(shlex.join(excmd := ["systemctl", "--user", "daemon-reload"]))
             subprocess.run(excmd, check=True)
@@ -404,7 +403,7 @@ def main_(args: list[str]) -> None:
         print(
             "Once locked the file cannot modify itself anymore and both saved Containerfile and podman-command are fixed"
         )
-        if not CONTAINERFILE.strip():
+        if not BUILD.strip():
             print(
                 "WARNING: The Containerfile has not been provided yet (command 'build PATH')! Locking now will mean the 'build' and 'all' commands won't work!"
             )
@@ -416,9 +415,9 @@ def main_(args: list[str]) -> None:
         if LOCK:
             raise Locked
         if len(options) == 0:
-            _self_modify(container="", command=[])
+            _self_modify(build="", command=[])
         elif len(options) == 1 and options[0] in ["build"]:
-            _self_modify(container="")
+            _self_modify(build="")
         elif len(options) == 1 and options[0] in ["cmd", "command"]:
             _self_modify(command=[])
         elif len(options) == 1:
@@ -432,50 +431,54 @@ def main_(args: list[str]) -> None:
             raise ArgumentError(f"Expected 1 argument PATH, got {len(options)}")
         path = Path(options[0]).resolve()
         if path.exists():
-            raise ArgumentError(f"PATH '{str(path)}' does already exist")
+            raise ArgumentError(f"PATH '{path.as_posix()}' does already exist")
         if not path.parent.is_dir():
-            raise ArgumentError(f"'{str(path.parent)}' does not exist or is not a directory")
-        content = _read_self()
+            raise ArgumentError(f"'{path.parent.as_posix()}' does not exist or is not a directory")
+        src = Path(__file__).read_text()
         if cmd == "copy":
-            _modify(content, lock=False, print_diff=False)
-            msg = f"Writing unlocked copy to '{str(path)}', you may want to lock it or clear it before use"
+            src, _ = _modify(src, plevel=0, lock=False)
+            msg = f"Writing unlocked copy to '{path.as_posix()}', you may want to lock it or clear it before use"
         else:
-            _modify(content, lock=False, container="", command=[], print_diff=False)
-            msg = f"Writing cleared/reset copy to '{str(path)}', you may want to add Containerfile and commands"
+            src, _ = _modify(src, plevel=0, lock=False, build="", command=[])
+            msg = f"Writing cleared copy to '{path.as_posix()}', you may want to add Containerfile and commands"
         print(msg)
-        _write_content(path, content)
+        path.write_text(src)
         path.chmod(0o755)
     elif cmd in ["update", "update-from-repo"]:
         if LOCK:
             print(
-                f"WARNING: Updating would self-modify this script, which is currently LOCKED. Please open '{str(Path(__file__))}' and set LOCK = False to proceed."
+                f"WARNING: Updating would self-modify this script, which is currently LOCKED. Please open '{Path(__file__).as_posix()}' and set LOCK = False to proceed."
             )
             raise Locked
         if len(options) == 1:
             raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
         print(
-            "WARNING: While your CONTAINERFILE and COMMAND will be kept, any other modifications will be lost!"
+            "WARNING: While your BUILD and COMMAND will be kept, any other modifications will be lost!"
         )
         inp = input("Do you wish to proceed and update this file? [Y/n]: ").strip().lower()
         if inp in ["n", "no", "abort", "exit"]:
             raise ArgumentError("Aborted")
         with urllib.request.urlopen(UPDATE_REPO, timeout=10) as response:
-            new = response.read().decode().rstrip().replace("\r", "").split("\n")
+            new = response.read().decode()
         oldv = __version__
-        _modify(
+        new, _ = _modify(
             new,
+            plevel=0,
             lock=LOCK,
-            container=CONTAINERFILE.lstrip(),
+            build=BUILD.strip(),
             command=COMMAND,
-            print_diff=False,
         )
         _v = "__version__ ="
         newv = next(
-            (line.removeprefix(_v) for line in new if line.startswith(_v)),
+            (
+                line.strip().removeprefix(_v).strip().strip("\"'")
+                for line in new.split("\n")
+                if line.startswith(_v)
+            ),
             "Cannot determine new version",
         )
-        _write_content(__file__, new)
-        print(f'Update successful: "{oldv}" -> {newv}')
+        Path(__file__).write_text(new)
+        print(f"Update successful: {oldv} -> {newv}")
     elif cmd in ["version", "--version", "-version"]:
         if len(options) == 0:
             print(f"podded - {__version__}")
@@ -484,10 +487,15 @@ def main_(args: list[str]) -> None:
             "--diff",
             "showdiff",
         ]:
-            new = _read_newest()
+            with urllib.request.urlopen(UPDATE_REPO, timeout=10) as response:
+                new = response.read().decode()
             _v = "__version__ ="
             newv = next(
-                (line.removeprefix(_v).strip().strip("\"'") for line in new if line.startswith(_v)),
+                (
+                    line.strip().removeprefix(_v).strip().strip("\"'")
+                    for line in new.split("\n")
+                    if line.startswith(_v)
+                ),
                 None,
             )
             diff = []
@@ -498,15 +506,15 @@ def main_(args: list[str]) -> None:
                 print(f"podded - {__version__} - old version (newest is {newv})")
                 print("INFO: Use command 'update-from-repo' to update to newest version")
             else:
-                curr = _read_self()
-                _modify(curr, lock=False, container="", command=[], print_diff=False)
-                _modify(new, lock=False, container="", command=[], print_diff=False)
+                curr = Path(__file__).read_text()
+                curr, _ = _modify(curr, plevel=0, lock=False, build="", command=[])
+                new, _ = _modify(new, plevel=0, lock=False, build="", command=[])
                 if curr == new:
                     print(f"podded - {__version__} - unchanged")
                 else:
                     print(f"podded - {__version__} - MODIFIED")
                     if options[0] in ["showdiff"]:
-                        diff = difflib.ndiff(curr, new)
+                        diff = difflib.ndiff(curr.splitlines(), new.splitlines())
                         print(
                             "\n".join(
                                 filter(
@@ -521,18 +529,11 @@ def main_(args: list[str]) -> None:
         else:
             raise ArgumentError(f"Expected at most 1 argument diff, got {len(options)}")
     elif cmd in ["print"]:
-        gvars = filter(
-            lambda s: s.isupper() and s.lower() not in ["lock", "containerfile", "command"],
-            globals().keys(),
-        )
+        gvars = filter(lambda s: s.isupper() and not s.startswith("_"), globals().keys())
         if len(options) == 0:
-            print(*("cmd", "build", *gvars), sep="\n")
-        elif len(options) == 1 and options[0].lower() in ["command", "cmd", "c"]:
-            print(_var_to_user_str("COMMAND"))
-        elif len(options) == 1 and options[0].lower() in ["build", "b", "file"]:
-            print(_var_to_user_str("CONTAINERFILE"))
-        elif len(options) == 1 and options[0] in gvars:
-            print(_var_to_user_str(options[0]))
+            return print(*gvars, sep="\n")
+        elif len(options) == 1 and options[0].upper() in gvars:
+            print(_var_to_user_str(options[0].upper()))
         else:
             raise ArgumentError(
                 f"Expected at most 1 argument command/build/VAR, got {len(options)}"
@@ -542,12 +543,11 @@ def main_(args: list[str]) -> None:
             if len(options) == 1 and options[0].lower() == "lock":
                 return _self_modify(lock=_edit("LOCK"))
             raise Locked
+        gvars = filter(lambda s: s.isupper() and not s.startswith("_"), globals().keys())
         if len(options) == 0:
-            print(*("cmd", "build"), sep="\n")
-        elif len(options) == 1 and options[0] in ["command", "cmd", "c"]:
-            _self_modify(command=_edit("COMMAND"))
-        elif len(options) == 1 and options[0] in ["build", "b", "file"]:
-            _self_modify(container=_edit("CONTAINERFILE"))
+            return print(*gvars, sep="\n")
+        elif len(options) == 1 and options[0].upper() in gvars:
+            _self_modify(**{options[0].upper(): _edit(options[0].upper())})
         else:
             raise ArgumentError(
                 f"Expected at most 1 argument command/build/VAR, got {len(options)}"
@@ -558,9 +558,7 @@ def main_(args: list[str]) -> None:
 
 
 def main(args: list[str]) -> int:
-    oldcwd = Path.cwd()
     try:
-        os.chdir(Path(__file__).parent)
         main_(args)
     except ArgumentError as e:
         print(
@@ -573,11 +571,11 @@ def main(args: list[str]) -> int:
         print("LOCKED: This script cannot modify itself", file=sys.stderr)
         return 2
     except subprocess.CalledProcessError as e:
-        print(
-            f"SUBPROCESS exited with {e.returncode}:",
-            str(e.args[0]) if e.args else "Unknown",
-            file=sys.stderr,
-        )
+        print(f"SUBPROCESS exited with {e.returncode}", file=sys.stderr)
+        if e.stdout:
+            print(f"STDOUT:\n{e.stdout if e.stdout else ''}", file=sys.stderr)
+        if e.stderr:
+            print(f"STDERR:\n{e.stderr if e.stderr else ''}", file=sys.stderr)
         return 3
     except NotProvided as e:
         print(
@@ -591,8 +589,6 @@ def main(args: list[str]) -> int:
 
         traceback.print_exc()
         return 9
-    finally:
-        os.chdir(oldcwd)
     return 0
 
 

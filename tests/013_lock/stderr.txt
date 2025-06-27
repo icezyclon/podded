@@ -1,0 +1,13 @@
+$ podded.py lock force
+$ podded.py command test this
+LOCKED: This script cannot modify itself
+$ podded.py run test this
+LOCKED: This script cannot modify itself
+$ podded.py build-copy Containerfile
+LOCKED: This script cannot modify itself
+$ podded.py build Containerfile
+LOCKED: This script cannot modify itself
+$ podded.py edit RUN_COMMAND
+LOCKED: This script cannot modify itself
+$ podded.py update
+LOCKED: This script cannot modify itself

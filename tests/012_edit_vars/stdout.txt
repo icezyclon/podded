@@ -1,0 +1,64 @@
+$ podded.py command this should run here
+'COMMAND' modified
+- COMMAND = []
++ COMMAND = ["this", "should", "run", "here"]
+
+$ podded.py edit COMMAND
+'COMMAND' modified
+- COMMAND = ["this", "should", "run", "here"]
++ COMMAND = ["this", "should", "<run-replace>", "here"]
+
+$ podded.py build Containerfile
+'BUILD' modified
+- BUILD = ""
++ BUILD = """
++ FROM ubuntu:24.04
++ 
++ RUN apt-get update && \
++     apt-get install -y --no-install-recommends \
++     openjdk-21-jre \
++     python3 \
++     && rm -rf /var/lib/apt/lists/*           
++ 
++ WORKDIR /app
++ 
++ CMD [ "python3", "run", "myapp" ]
++ """
+
+podman build -t podded /tmp/<tempdir>
+% ['podman', 'build', '-t', 'podded', '/tmp/<tempdir>']
+$ podded.py edit RUN_COMMAND
+'RUN_COMMAND' modified
+- RUN_COMMAND = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
++ RUN_COMMAND = ["podman", "<run-replace>", "-d", "--name", "podded"]
+
+$ podded.py edit COMMAND
+'COMMAND' modified
+- COMMAND = ["this", "should", "<run-replace>", "here"]
++ COMMAND = ["this", "should", "<<run-replace>-replace>", "here"]
+
+$ podded.py edit BUILD
+'BUILD' modified
+- BUILD = """
+- FROM ubuntu:24.04
+- 
+- RUN apt-get update && \
+-     apt-get install -y --no-install-recommends \
+-     openjdk-21-jre \
+-     python3 \
+-     && rm -rf /var/lib/apt/lists/*           
+- 
+- WORKDIR /app
+- 
+- CMD [ "python3", "run", "myapp" ]
+- """
++ BUILD = """
++ FROM ubuntu:24.04
++ 
++ RUN apt-get update &&     apt-get install -y --no-install-recommends     openjdk-21-jre     python3     && rm -rf /var/lib/apt/lists/*           
++ 
++ WORKDIR /app
++ 
++ CMD [ "python3", "<run-replace>", "myapp" ]
++ """
+

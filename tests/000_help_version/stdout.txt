@@ -1,0 +1,41 @@
+$ podded.py help
+podded - Saves your podman build instructions, run commands and systemd (quadlet) service files - all in a single script.
+
+podded solves the inconvenience of having to manage run command, Containerfile and quadlet file in a single self-modifying script:
+* Stores the Containerfile inside the script
+* Saves and reuses your podman run command after the first use
+* Automatically generates and manages quadlet files for systemd
+
+For more details see: https://github.com/icezyclon/podded
+
+Version: 1.0
+
+Commands:
+  help                See this help text
+  build               Build the last saved Contrainerfile with 'podman build -t podded'
+  run[-it]            Run the last saved command [in interactive mode]
+  all[-it]            Build saved Containerfile and run saved command [in interactive mode]
+  stop                Stop the running container with name 'podded'
+  new PATH/NAME       Create a new cleared copy of podded.py at PATH/NAME (copy + clear)
+  copy PATH/NAME      Create a new unlocked copy of podded.py at PATH/NAME
+  print               Print all printable variables/keys to stdout
+  print cmd/build/VAR Print the saved run command(cmd), Containerfile(build) or global VAR to stdout
+  version [diff]      Print the version of this script to stdout [checking against the newest version online]
+
+Systemd commands:
+  status              Show status of systemd service (podded)
+  enable              Generate, enable and start systemd service for user
+  disable             Disable and stop systemd service
+  quadlet             Generate the quadlet (.container file) and print it to stdout
+
+Self-Modifying Commands:
+  command COMMAND*    Save COMMAND of form 'podman run -d --name podded COMMAND*'
+  run[-it] COMMAND*   Save COMMAND of form 'podman run -d --name podded COMMAND*' and run it [in interactive mode]
+  build-copy PATH     Save the *content* of Containerfile/Dockerfile at PATH
+  build PATH          Save the *content* of Containerfile/Dockerfile at PATH and build it
+  edit [cmd/build]    Edit the command or build file in EDITOR respectively, saving it back once done
+  lock [force]        Lock the build and run commands and prevent further self-modification
+  clear [build/run]   Clear saved Containerfile, run-command or both
+  update-from-repo    Download and update this script with the most up-to-date podded.py from Github
+$ podded.py version
+podded - 1.0

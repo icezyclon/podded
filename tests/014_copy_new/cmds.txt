@@ -1,0 +1,11 @@
+podded.py command the meaning of life
+podded.py edit RUN_COMMAND
+podded.py lock force
+podded.py new newfile.py
+podded.py copy copyfile.py
+newfile.py print LOCK
+newfile.py print COMMAND
+newfile.py print RUN_COMMAND
+copyfile.py print LOCK
+copyfile.py print COMMAND
+copyfile.py print RUN_COMMAND

@@ -1,0 +1,36 @@
+$ podded.py print LOCK
+false
+$ podded.py print lock
+false
+$ podded.py print BUILD
+
+$ podded.py print COMMAND
+
+$ podded.py print TAG
+podded
+$ podded.py print BUILD_COMMAND
+podman build -t podded
+$ podded.py print RUN_COMMAND
+podman run -d --name podded
+$ podded.py print run_command
+podman run -d --name podded
+$ podded.py print RUN_IT_COMMAND
+podman run -it --name podded
+$ podded.py print STOP_COMMAND
+podman stop podded
+$ podded.py print PODLET_COMMAND
+podlet -i -a podman run -d --name podded
+$ podded.py print PODLET_FALLBACK
+podman run --rm -v /tmp/<tempdir>:/tmp/<tempdir>:ro -w /tmp/<tempdir> ghcr.io/containers/podlet
+$ podded.py print QUADLET_DIR
+/home/loki/.config/containers/systemd
+$ podded.py print QUADLET_TEMPLATE
+[Service]
+Restart=always
+RestartSec=10
+
+[Timer]
+OnStartupSec=60
+$ podded.py print UPDATE_REPO
+https://raw.githubusercontent.com/icezyclon/podded/main/podded.py
+$ podded.py print ASDFDOESNOTEXIST

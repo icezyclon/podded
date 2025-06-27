@@ -1,0 +1,2 @@
+$ podded.py asdfdoesnotexist
+Use command 'help' for usage

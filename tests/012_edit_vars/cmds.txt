@@ -1,0 +1,6 @@
+podded.py command this should run here
+podded.py edit COMMAND
+podded.py build Containerfile
+podded.py edit RUN_COMMAND
+podded.py edit COMMAND
+podded.py edit BUILD

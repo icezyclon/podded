@@ -1,0 +1,4 @@
+$ podded.py run-it
+MISSING: The podman-command has not been provided yet, use 'run COMMAND' to save one
+$ podded.py run-it another command be
+$ podded.py run-it
