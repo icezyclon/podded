@@ -8,7 +8,7 @@ $ podded.py build-copy Containerfile
 +     apt-get install -y --no-install-recommends \
 +     openjdk-21-jre \
 +     python3 \
-+     && rm -rf /var/lib/apt/lists/*           
++     && rm -rf /var/lib/apt/lists/*
 + 
 + WORKDIR /app
 + 

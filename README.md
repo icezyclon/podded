@@ -42,7 +42,7 @@ The **script’s filename** defines the **container’s name and build tag** - s
 
 ## Usage
 
-Imagine you have the following situation: 
+Imagine you have the following situation:
 You have an nginx webserver that can be deployed with multiple configurations: development and production.
 
 With `podded`, you keep everything in **one script per configuration**, instead of juggling separate `bash` scripts, `Containerfiles`, and quadlet files.

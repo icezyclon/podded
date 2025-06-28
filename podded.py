@@ -21,7 +21,7 @@ For more details see: https://github.com/icezyclon/podded
 # You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 # Also, all global config variables are of types: Path, list[str], str, bool, int - no other types are allowed
 
-__version__ = "1.0"
+__version__ = "1.1"
 
 import ast
 import difflib
@@ -48,21 +48,26 @@ COMMAND = []
 # WARN: On modifications with 'edit' only hardcoded values will be written back, use with care or edit manually!
 TAG = Path(__file__).name.split(".", 1)[0].replace(" ", "_")
 BUILD_COMMAND = ["podman", "build", "-t", TAG]  # + <temp-Containerfile-dir>
-RUN_COMMAND = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
+RUN_COMMAND = ["podman", "run", "-dit", "--name", TAG]  # + COMMAND
 RUN_IT_COMMAND = ["podman", "run", "-it", "--name", TAG]  # + COMMAND
 STOP_COMMAND = ["podman", "stop", TAG]
 PODLET_COMMAND = ["podlet", "-i", "-a"] + RUN_COMMAND + []  # + COMMAND
 # fallback to ghcr.io/containers/podlet container if podlet is not locally installed
-# (-v and -w for correct resolution of absolute paths (-a option))
+# (this command also demonstrates some sensible options for security and container privileges)
 PODLET_FALLBACK = [
     "podman",
     "run",
     "--rm",
-    "-v",
-    f"{_CDIR}:{_CDIR}:ro",
-    "-w",
-    _CDIR,
-    "ghcr.io/containers/podlet",
+    "--userns=keep-id",
+    "--network=none",  # use 'host' for normal internet access (default)
+    "--cap-drop=ALL",
+    "--security-opt=no-new-privileges",
+    "--read-only",
+    "--tmpfs=/tmp",
+    # (-v and -w for correct resolution of absolute paths (-a option))
+    f"-v={_CDIR}:{_CDIR}:ro",
+    f"-w={_CDIR}",
+    "ghcr.io/containers/podlet:latest",
 ]  # + PODLET_COMMAND
 QUADLET_DIR = Path.home() / ".config" / "containers" / "systemd"
 QUADLET_TEMPLATE = """

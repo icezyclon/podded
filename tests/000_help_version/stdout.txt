@@ -8,7 +8,7 @@ podded solves the inconvenience of having to manage run command, Containerfile a
 
 For more details see: https://github.com/icezyclon/podded
 
-Version: 1.0
+Version: 1.1
 
 Commands:
   help                See this help text
@@ -29,8 +29,8 @@ Systemd commands:
   quadlet             Generate the quadlet (.container file) and print it to stdout
 
 Self-Modifying Commands:
-  command COMMAND*    Save COMMAND of form 'podman run -d --name podded COMMAND*'
-  run[-it] COMMAND*   Save COMMAND of form 'podman run -d --name podded COMMAND*' and run it [in interactive mode]
+  command COMMAND*    Save COMMAND of form 'podman run -dit --name podded COMMAND*'
+  run[-it] COMMAND*   Save COMMAND of form 'podman run -dit --name podded COMMAND*' and run it [in interactive mode]
   build-copy PATH     Save the *content* of Containerfile/Dockerfile at PATH
   build PATH          Save the *content* of Containerfile/Dockerfile at PATH and build it
   edit [cmd/build]    Edit the command or build file in EDITOR respectively, saving it back once done
@@ -38,4 +38,4 @@ Self-Modifying Commands:
   clear [build/run]   Clear saved Containerfile, run-command or both
   update-from-repo    Download and update this script with the most up-to-date podded.py from Github
 $ podded.py version
-podded - 1.0
+podded - 1.1

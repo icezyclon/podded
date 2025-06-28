@@ -2,8 +2,8 @@ $ podded.py status
 systemctl --user status podded
 % ['systemctl', '--user', 'status', 'podded']
 $ podded.py enable
-podman run --rm -v /tmp/<tempdir>:/tmp/<tempdir>:ro -w /tmp/<tempdir> ghcr.io/containers/podlet -i -a podman run -d --name podded
-% ['podman', 'run', '--rm', '-v', '/tmp/<tempdir>:/tmp/<tempdir>:ro', '-w', '/tmp/<tempdir>', 'ghcr.io/containers/podlet', '-i', '-a', 'podman', 'run', '-d', '--name', 'podded']
+podman run --rm --userns=keep-id --network=none --cap-drop=ALL --security-opt=no-new-privileges --read-only --tmpfs=/tmp -v=/tmp/<tempdir>:/tmp/<tempdir>:ro -w=/tmp/<tempdir> ghcr.io/containers/podlet:latest -i -a podman run -dit --name podded
+% ['podman', 'run', '--rm', '--userns=keep-id', '--network=none', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--read-only', '--tmpfs=/tmp', '-v=/tmp/<tempdir>:/tmp/<tempdir>:ro', '-w=/tmp/<tempdir>', 'ghcr.io/containers/podlet:latest', '-i', '-a', 'podman', 'run', '-dit', '--name', 'podded']
 Writing quadlet to '/home/loki/.config/containers/systemd/podded.container'
 systemctl --user daemon-reload
 % ['systemctl', '--user', 'daemon-reload']
@@ -17,8 +17,8 @@ Deleted '/home/loki/.config/containers/systemd/podded.container'
 systemctl --user daemon-reload
 % ['systemctl', '--user', 'daemon-reload']
 $ podded.py quadlet
-# podman run --rm -v /tmp/<tempdir>:/tmp/<tempdir>:ro -w /tmp/<tempdir> ghcr.io/containers/podlet -i -a podman run -d --name podded
-% ['podman', 'run', '--rm', '-v', '/tmp/<tempdir>:/tmp/<tempdir>:ro', '-w', '/tmp/<tempdir>', 'ghcr.io/containers/podlet', '-i', '-a', 'podman', 'run', '-d', '--name', 'podded']
+# podman run --rm --userns=keep-id --network=none --cap-drop=ALL --security-opt=no-new-privileges --read-only --tmpfs=/tmp -v=/tmp/<tempdir>:/tmp/<tempdir>:ro -w=/tmp/<tempdir> ghcr.io/containers/podlet:latest -i -a podman run -dit --name podded
+% ['podman', 'run', '--rm', '--userns=keep-id', '--network=none', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--read-only', '--tmpfs=/tmp', '-v=/tmp/<tempdir>:/tmp/<tempdir>:ro', '-w=/tmp/<tempdir>', 'ghcr.io/containers/podlet:latest', '-i', '-a', 'podman', 'run', '-dit', '--name', 'podded']
 [Timer]
 OnStartupSec=60
 [Service]

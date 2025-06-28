@@ -6,7 +6,7 @@
 +BUILD = """
 +FROM ubuntu:24.04
 +
-+RUN apt-get update &&     apt-get install -y --no-install-recommends     openjdk-21-jre     python3     && rm -rf /var/lib/apt/lists/*           
++RUN apt-get update &&     apt-get install -y --no-install-recommends     openjdk-21-jre     python3     && rm -rf /var/lib/apt/lists/*
 +
 +WORKDIR /app
 +
@@ -14,5 +14,5 @@
 +"""
 +COMMAND = ["this", "should", "<<run-replace>-replace>", "here"]
 @@ @@
--RUN_COMMAND = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
-+RUN_COMMAND = ["podman", "<run-replace>", "-d", "--name", "podded"]
+-RUN_COMMAND = ["podman", "run", "-dit", "--name", TAG]  # + COMMAND
++RUN_COMMAND = ["podman", "<run-replace>", "-dit", "--name", "podded"]

@@ -18,7 +18,7 @@ $ podded.py build Containerfile
 +     apt-get install -y --no-install-recommends \
 +     openjdk-21-jre \
 +     python3 \
-+     && rm -rf /var/lib/apt/lists/*           
++     && rm -rf /var/lib/apt/lists/*
 + 
 + WORKDIR /app
 + 
@@ -29,8 +29,8 @@ podman build -t podded /tmp/<tempdir>
 % ['podman', 'build', '-t', 'podded', '/tmp/<tempdir>']
 $ podded.py edit RUN_COMMAND
 'RUN_COMMAND' modified
-- RUN_COMMAND = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
-+ RUN_COMMAND = ["podman", "<run-replace>", "-d", "--name", "podded"]
+- RUN_COMMAND = ["podman", "run", "-dit", "--name", TAG]  # + COMMAND
++ RUN_COMMAND = ["podman", "<run-replace>", "-dit", "--name", "podded"]
 
 $ podded.py edit COMMAND
 'COMMAND' modified
@@ -46,7 +46,7 @@ $ podded.py edit BUILD
 -     apt-get install -y --no-install-recommends \
 -     openjdk-21-jre \
 -     python3 \
--     && rm -rf /var/lib/apt/lists/*           
+-     && rm -rf /var/lib/apt/lists/*
 - 
 - WORKDIR /app
 - 
@@ -55,7 +55,7 @@ $ podded.py edit BUILD
 + BUILD = """
 + FROM ubuntu:24.04
 + 
-+ RUN apt-get update &&     apt-get install -y --no-install-recommends     openjdk-21-jre     python3     && rm -rf /var/lib/apt/lists/*           
++ RUN apt-get update &&     apt-get install -y --no-install-recommends     openjdk-21-jre     python3     && rm -rf /var/lib/apt/lists/*
 + 
 + WORKDIR /app
 + 

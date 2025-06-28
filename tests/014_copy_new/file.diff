@@ -9,5 +9,5 @@
 -COMMAND = []
 +COMMAND = ["the", "meaning", "of", "life"]
 @@ @@
--RUN_COMMAND = ["podman", "run", "-d", "--name", TAG]  # + COMMAND
-+RUN_COMMAND = ["podman", "<run-replace>", "-d", "--name", "podded"]
+-RUN_COMMAND = ["podman", "run", "-dit", "--name", TAG]  # + COMMAND
++RUN_COMMAND = ["podman", "<run-replace>", "-dit", "--name", "podded"]

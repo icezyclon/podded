@@ -8,7 +8,7 @@ $ podded.py build-copy Containerfile
 +     apt-get install -y --no-install-recommends \
 +     openjdk-21-jre \
 +     python3 \
-+     && rm -rf /var/lib/apt/lists/*           
++     && rm -rf /var/lib/apt/lists/*
 + 
 + WORKDIR /app
 + 
@@ -23,8 +23,8 @@ $ podded.py command here be dragons
 $ podded.py all
 podman build -t podded /tmp/<tempdir>
 % ['podman', 'build', '-t', 'podded', '/tmp/<tempdir>']
-podman run -d --name podded here be dragons
-% ['podman', 'run', '-d', '--name', 'podded', 'here', 'be', 'dragons']
+podman run -dit --name podded here be dragons
+% ['podman', 'run', '-dit', '--name', 'podded', 'here', 'be', 'dragons']
 $ podded.py all-it
 podman build -t podded /tmp/<tempdir>
 % ['podman', 'build', '-t', 'podded', '/tmp/<tempdir>']
@@ -39,7 +39,7 @@ $ podded.py clear
 -     apt-get install -y --no-install-recommends \
 -     openjdk-21-jre \
 -     python3 \
--     && rm -rf /var/lib/apt/lists/*           
+-     && rm -rf /var/lib/apt/lists/*
 - 
 - WORKDIR /app
 - 
