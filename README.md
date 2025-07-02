@@ -1,4 +1,4 @@
-# podded - One script for Podman build, run & systemd quadlets
+# podded - One script for Podman build, run & systemd
 
 [![license: mit](https://img.shields.io/badge/license-MIT-purple)](https://github.com/icezyclon/podded?tab=License-1-ov-file#readme)
 [![stars](https://img.shields.io/github/stars/icezyclon/podded?style=social)](https://github.com/icezyclon/podded)
