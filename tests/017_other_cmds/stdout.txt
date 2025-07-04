@@ -1,0 +1,21 @@
+$ podded.py stop
+podman stop podded
+% ['podman', 'stop', 'podded']
+$ podded.py stop 15
+podman stop --time 15 podded
+% ['podman', 'stop', '--time', '15', 'podded']
+$ podded.py stop thatswrong
+$ podded.py attach
+INFO: default detach sequence is: "ctrl-p,ctrl-q"
+podman attach podded
+% ['podman', 'attach', 'podded']
+$ podded.py attach --someflag
+INFO: default detach sequence is: "ctrl-p,ctrl-q"
+podman attach podded
+% ['podman', 'attach', 'podded']
+$ podded.py exec
+podman exec -it podded sh
+% ['podman', 'exec', '-it', 'podded', 'sh']
+$ podded.py exec bash -c "echo hi"
+podman exec -it podded bash -c 'echo hi'
+% ['podman', 'exec', '-it', 'podded', 'bash', '-c', 'echo hi']

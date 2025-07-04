@@ -1,0 +1,7 @@
+podded.py stop
+podded.py stop 15
+podded.py stop thatswrong
+podded.py attach
+podded.py attach --someflag
+podded.py exec
+podded.py exec bash -c "echo hi"

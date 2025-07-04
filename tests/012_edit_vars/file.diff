@@ -14,5 +14,5 @@
 +"""
 +COMMAND = ["this", "should", "<<run-replace>-replace>", "here"]
 @@ @@
--RUN_COMMAND = ["podman", "run", "-dit", "--name", TAG]  # + COMMAND
-+RUN_COMMAND = ["podman", "<run-replace>", "-dit", "--name", "podded"]
+-RUN_COMMAND = ["run", "-dit", "--name", TAG]  # + COMMAND
++RUN_COMMAND = ["<run-replace>", "-dit", "--name", "podded"]

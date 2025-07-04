@@ -1,0 +1,8 @@
+$ podded.py stop
+$ podded.py stop 15
+$ podded.py stop thatswrong
+INVALID ARGUMENT: Expected at most 1 argument TIME:int, got 1
+$ podded.py attach
+$ podded.py attach --someflag
+$ podded.py exec
+$ podded.py exec bash -c "echo hi"

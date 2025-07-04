@@ -3,12 +3,16 @@ $ podded.py print lock
 $ podded.py print BUILD
 $ podded.py print COMMAND
 $ podded.py print TAG
+$ podded.py print PODMAN
 $ podded.py print BUILD_COMMAND
 $ podded.py print RUN_COMMAND
 $ podded.py print run_command
 $ podded.py print RUN_IT_COMMAND
 $ podded.py print STOP_COMMAND
+$ podded.py print ATTACH_COMMAND
+$ podded.py print EXEC_COMMAND
 $ podded.py print PODLET_COMMAND
+$ podded.py print PODLET_OPTIONS
 $ podded.py print PODLET_FALLBACK
 $ podded.py print QUADLET_DIR
 $ podded.py print QUADLET_TEMPLATE

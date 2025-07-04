@@ -25,12 +25,12 @@ $ podded.py build Containerfile
 + CMD [ "python3", "run", "myapp" ]
 + """
 
-podman build -t podded /tmp/<tempdir>
-% ['podman', 'build', '-t', 'podded', '/tmp/<tempdir>']
+podman build --tag podded /tmp/<tempdir>
+% ['podman', 'build', '--tag', 'podded', '/tmp/<tempdir>']
 $ podded.py edit RUN_COMMAND
 'RUN_COMMAND' modified
-- RUN_COMMAND = ["podman", "run", "-dit", "--name", TAG]  # + COMMAND
-+ RUN_COMMAND = ["podman", "<run-replace>", "-dit", "--name", "podded"]
+- RUN_COMMAND = ["run", "-dit", "--name", TAG]  # + COMMAND
++ RUN_COMMAND = ["<run-replace>", "-dit", "--name", "podded"]
 
 $ podded.py edit COMMAND
 'COMMAND' modified

@@ -21,7 +21,7 @@ For more details see: https://github.com/icezyclon/podded
 # You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 # Also, all global config variables are of types: Path, list[str], str, bool, int - no other types are allowed
 
-__version__ = "1.1"
+__version__ = "1.2"
 
 import ast
 import difflib
@@ -47,15 +47,18 @@ COMMAND = []
 # NOTE: These variables will NOT be preserved on 'update' and NOT modified by 'clear'
 # WARN: On modifications with 'edit' only hardcoded values will be written back, use with care or edit manually!
 TAG = Path(__file__).name.split(".", 1)[0].replace(" ", "_")
-BUILD_COMMAND = ["podman", "build", "-t", TAG]  # + <temp-Containerfile-dir>
-RUN_COMMAND = ["podman", "run", "-dit", "--name", TAG]  # + COMMAND
-RUN_IT_COMMAND = ["podman", "run", "-it", "--name", TAG]  # + COMMAND
-STOP_COMMAND = ["podman", "stop", TAG]
-PODLET_COMMAND = ["podlet", "-i", "-a"] + RUN_COMMAND + []  # + COMMAND
+PODMAN = Path("podman")  # path to podman executable (is not resolved before executing)
+BUILD_COMMAND = ["build", "--tag", TAG]  # + <temp-Containerfile-dir>
+RUN_COMMAND = ["run", "-dit", "--name", TAG]  # + COMMAND
+RUN_IT_COMMAND = ["run", "-it", "--name", TAG]  # + COMMAND
+STOP_COMMAND = ["stop"]  # + [-t <time>] + TAG
+ATTACH_COMMAND = ["attach"]  # + TAG
+EXEC_COMMAND = ["exec", "-it"]  # + TAG + <cli-args> OR 'sh'
+PODLET_COMMAND = ["podlet", "-i", "-a", "podman"]  # + RUN_COMMAND + PODLET_OPTIONS + COMMAND
+PODLET_OPTIONS = []
 # fallback to ghcr.io/containers/podlet container if podlet is not locally installed
 # (this command also demonstrates some sensible options for security and container privileges)
 PODLET_FALLBACK = [
-    "podman",
     "run",
     "--rm",
     "--userns=keep-id",
@@ -68,7 +71,7 @@ PODLET_FALLBACK = [
     f"-v={_CDIR}:{_CDIR}:ro",
     f"-w={_CDIR}",
     "ghcr.io/containers/podlet:latest",
-]  # + PODLET_COMMAND
+]  # + PODLET_COMMAND[1:] + RUN_COMMAND + PODLET_OPTIONS + COMMAND
 QUADLET_DIR = Path.home() / ".config" / "containers" / "systemd"
 QUADLET_TEMPLATE = """
 [Service]
@@ -237,7 +240,7 @@ def build_cmd():
     tmpdir_obj = tempfile.TemporaryDirectory(prefix="podded_")
     tmpdir = Path(tmpdir_obj.name)
     (tmpdir / "Containerfile").write_text(BUILD)
-    excmd = BUILD_COMMAND + [str(tmpdir)]
+    excmd = [(str(PODMAN))] + BUILD_COMMAND + [str(tmpdir)]
     print(shlex.join(excmd))
     subprocess.run(excmd, check=True)
 
@@ -248,7 +251,7 @@ def run_cmd(interactive: bool):
             "The podman-command has not been provided"
             + ("" if LOCK else " yet, use 'run COMMAND' to save one")
         )
-    excmd = (RUN_IT_COMMAND if interactive else RUN_COMMAND) + COMMAND
+    excmd = [(str(PODMAN))] + (RUN_IT_COMMAND if interactive else RUN_COMMAND) + COMMAND
     print(shlex.join(excmd))
     subprocess.run(excmd, cwd=_CDIR, check=True)
 
@@ -265,10 +268,12 @@ def main_(args: list[str]) -> None:
             "",
             "Commands:",
             "  help                See this help text",
-            f"  build               Build the last saved Contrainerfile with '{' '.join(BUILD_COMMAND)}'",
+            "  build               Build the last saved Contrainerfile",
             "  run[-it]            Run the last saved command [in interactive mode]",
             "  all[-it]            Build saved Containerfile and run saved command [in interactive mode]",
-            f"  stop                Stop the running container with name '{TAG}'",
+            f"  stop [TIME]         Stop the running container with name '{TAG}' [waiting at most TIME seconds]",
+            f"  attach              Attach to running container with name '{TAG}'",
+            f"  exec [*COMMAND]     Exec sh [or COMMAND if given] in the running container with name '{TAG}'",
             f"  new PATH/NAME       Create a new cleared copy of {Path(__file__).name} at PATH/NAME (copy + clear)",
             f"  copy PATH/NAME      Create a new unlocked copy of {Path(__file__).name} at PATH/NAME",
             "  print               Print all printable variables/keys to stdout",
@@ -282,8 +287,8 @@ def main_(args: list[str]) -> None:
             "  quadlet             Generate the quadlet (.container file) and print it to stdout",
             "",
             "Self-Modifying Commands:" + (" (LOCKED)" if LOCK else ""),
-            f"  command COMMAND*    Save COMMAND of form '{' '.join(RUN_COMMAND)} COMMAND*'",
-            f"  run[-it] COMMAND*   Save COMMAND of form '{' '.join(RUN_COMMAND)} COMMAND*' and run it [in interactive mode]",
+            "  command COMMAND*    Save COMMAND in this script to run later",
+            "  run[-it] COMMAND*   Save COMMAND in this script and run it [in interactive mode]",
             "  build-copy PATH     Save the *content* of Containerfile/Dockerfile at PATH",
             "  build PATH          Save the *content* of Containerfile/Dockerfile at PATH and build it",
             "  edit [cmd/build]    Edit the command or build file in EDITOR respectively, saving it back once done",
@@ -322,8 +327,24 @@ def main_(args: list[str]) -> None:
         if cmd == "build":
             return build_cmd()
     elif cmd in ["stop"]:
-        print(shlex.join(STOP_COMMAND))
-        subprocess.run(STOP_COMMAND)
+        if len(options) == 1 and options[0].isdigit():
+            options = ["--time", options[0]]
+        elif len(options) != 0:
+            raise ArgumentError(f"Expected at most 1 argument TIME:int, got {len(options)}")
+        excmd = [(str(PODMAN))] + STOP_COMMAND + options + [TAG]
+        print(shlex.join(excmd))
+        subprocess.run(excmd)
+    elif cmd in ["attach"]:
+        excmd = [(str(PODMAN))] + ATTACH_COMMAND + [TAG]
+        print('INFO: default detach sequence is: "ctrl-p,ctrl-q"')
+        print(shlex.join(excmd))
+        subprocess.run(excmd)
+    elif cmd in ["exec"]:
+        if len(options) == 0:
+            options = ["sh"]
+        excmd = [(str(PODMAN))] + EXEC_COMMAND + [TAG] + options
+        print(shlex.join(excmd))
+        subprocess.run(excmd)
     elif cmd in ["enable", "disable", "status", "quadlet"]:
         if len(options) != 0:
             raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
@@ -331,11 +352,11 @@ def main_(args: list[str]) -> None:
         if cmd in ["enable", "quadlet"]:
             finalcmd = shlex.join(
                 excmd := (
-                    (
-                        PODLET_COMMAND
-                        if shutil.which(PODLET_COMMAND[0]) is not None
-                        else PODLET_FALLBACK + PODLET_COMMAND[1:]
-                    )
+                    PODLET_COMMAND
+                    if shutil.which(PODLET_COMMAND[0]) is not None
+                    else ([(str(PODMAN))] + PODLET_FALLBACK + PODLET_COMMAND[1:])
+                    + RUN_COMMAND
+                    + PODLET_OPTIONS
                     + COMMAND
                 )
             )

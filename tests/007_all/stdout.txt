@@ -21,13 +21,13 @@ $ podded.py command here be dragons
 + COMMAND = ["here", "be", "dragons"]
 
 $ podded.py all
-podman build -t podded /tmp/<tempdir>
-% ['podman', 'build', '-t', 'podded', '/tmp/<tempdir>']
+podman build --tag podded /tmp/<tempdir>
+% ['podman', 'build', '--tag', 'podded', '/tmp/<tempdir>']
 podman run -dit --name podded here be dragons
 % ['podman', 'run', '-dit', '--name', 'podded', 'here', 'be', 'dragons']
 $ podded.py all-it
-podman build -t podded /tmp/<tempdir>
-% ['podman', 'build', '-t', 'podded', '/tmp/<tempdir>']
+podman build --tag podded /tmp/<tempdir>
+% ['podman', 'build', '--tag', 'podded', '/tmp/<tempdir>']
 podman run -it --name podded here be dragons
 % ['podman', 'run', '-it', '--name', 'podded', 'here', 'be', 'dragons']
 $ podded.py clear

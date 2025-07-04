@@ -8,20 +8,28 @@ $ podded.py print COMMAND
 
 $ podded.py print TAG
 podded
+$ podded.py print PODMAN
+podman
 $ podded.py print BUILD_COMMAND
-podman build -t podded
+build --tag podded
 $ podded.py print RUN_COMMAND
-podman run -dit --name podded
+run -dit --name podded
 $ podded.py print run_command
-podman run -dit --name podded
+run -dit --name podded
 $ podded.py print RUN_IT_COMMAND
-podman run -it --name podded
+run -it --name podded
 $ podded.py print STOP_COMMAND
-podman stop podded
+stop
+$ podded.py print ATTACH_COMMAND
+attach
+$ podded.py print EXEC_COMMAND
+exec -it
 $ podded.py print PODLET_COMMAND
-podlet -i -a podman run -dit --name podded
+podlet -i -a podman
+$ podded.py print PODLET_OPTIONS
+
 $ podded.py print PODLET_FALLBACK
-podman run --rm --userns=keep-id --network=none --cap-drop=ALL --security-opt=no-new-privileges --read-only --tmpfs=/tmp -v=/tmp/<tempdir>:/tmp/<tempdir>:ro -w=/tmp/<tempdir> ghcr.io/containers/podlet:latest
+run --rm --userns=keep-id --network=none --cap-drop=ALL --security-opt=no-new-privileges --read-only --tmpfs=/tmp -v=/tmp/<tempdir>:/tmp/<tempdir>:ro -w=/tmp/<tempdir> ghcr.io/containers/podlet:latest
 $ podded.py print QUADLET_DIR
 /home/loki/.config/containers/systemd
 $ podded.py print QUADLET_TEMPLATE
