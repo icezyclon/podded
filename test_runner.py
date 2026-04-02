@@ -11,6 +11,7 @@ from pathlib import Path
 PODDED_ORIG = Path("podded.py")
 assert PODDED_ORIG.is_file()
 RE_TEMP = re.compile(r"/tmp/[-_a-zA-Z0-9]+")
+RE_HOME = re.compile(Path.home().as_posix())
 
 
 def run_command(cmd, cwd, env=None, stdin_data=None):
@@ -71,13 +72,13 @@ def prepare_podded(tmp_dir: Path):
     # shutil.copy(PODDED_ORIG, newpodded)
     content = PODDED_ORIG.read_text().splitlines()
     index = content.index("import subprocess")
-    # TODO: but allow "podman ... podlet"
+    assert index >= 0, "Could not find import for subprocess"
     newcode = [
         "_real_sp_run = subprocess.run",
         "def _proxy_sp_run(cmd, *args, **kwargs):",
         "    class Proxy:",
         "        stdout = '<proxy-stdout>'",
-        "    if cmd[0] in ['podman', 'systemctl']:",
+        "    if cmd[0] in ['podman', 'systemctl', 'journalctl', 'podlet']:",
         "        print(f'% {cmd}')",
         "        return Proxy()",
         "    else:",
@@ -122,8 +123,10 @@ def execute_cmds(cmds: list[str], cwd: Path, stdin: str, env_override: dict[str,
         full_stderr += f"$ {cmd}\n{result.stderr}"
         returncodes.append(result.returncode)
 
-    full_stdout = re.sub(RE_TEMP, "/tmp/<tempdir>", full_stdout)
-    full_stderr = re.sub(RE_TEMP, "/tmp/<tempdir>", full_stderr)
+    subs = [(RE_TEMP, "/tmp/<tempdir>"), (RE_HOME, "/home/<homedir>")]
+    for pattern, repl in subs:
+        full_stdout = re.sub(pattern, repl, full_stdout)
+        full_stderr = re.sub(pattern, repl, full_stderr)
 
     return returncodes, full_stdout, full_stderr
 

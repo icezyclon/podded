@@ -8,7 +8,7 @@ podded solves the inconvenience of having to manage run command, Containerfile a
 
 For more details see: https://github.com/icezyclon/podded
 
-Version: 1.2
+Version: 1.3
 
 Commands:
   help                See this help text
@@ -26,6 +26,7 @@ Commands:
 
 Systemd commands:
   status              Show status of systemd service (podded)
+  logs [follow]       Show [and follow] logs of systemd service (podded)
   enable              Generate, enable and start systemd service for user
   disable             Disable and stop systemd service
   quadlet             Generate the quadlet (.container file) and print it to stdout
@@ -40,4 +41,4 @@ Self-Modifying Commands:
   clear [build/run]   Clear saved Containerfile, run-command or both
   update-from-repo    Download and update this script with the most up-to-date podded.py from Github
 $ podded.py version
-podded - 1.2
+podded - 1.3

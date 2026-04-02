@@ -21,7 +21,7 @@ For more details see: https://github.com/icezyclon/podded
 # You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 # Also, all global config variables are of types: Path, list[str], str, bool, int - no other types are allowed
 
-__version__ = "1.2"
+__version__ = "1.3"
 
 import ast
 import difflib
@@ -79,7 +79,7 @@ Restart=always
 RestartSec=10
 
 [Timer]
-OnStartupSec=60
+OnStartupSec=30
 """
 UPDATE_REPO = "https://raw.githubusercontent.com/icezyclon/podded/main/podded.py"
 # === END REGULAR CONFIG ===
@@ -282,6 +282,7 @@ def main_(args: list[str]) -> None:
             "",
             "Systemd commands:",
             f"  status              Show status of systemd service ({TAG})",
+            f"  logs [follow]       Show [and follow] logs of systemd service ({TAG})",
             "  enable              Generate, enable and start systemd service for user",
             "  disable             Disable and stop systemd service",
             "  quadlet             Generate the quadlet (.container file) and print it to stdout",
@@ -345,16 +346,18 @@ def main_(args: list[str]) -> None:
         excmd = [(str(PODMAN))] + EXEC_COMMAND + [TAG] + options
         print(shlex.join(excmd))
         subprocess.run(excmd)
-    elif cmd in ["enable", "disable", "status", "quadlet"]:
-        if len(options) != 0:
-            raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
+    elif cmd in ["enable", "disable", "status", "quadlet", "logs"]:
         path = QUADLET_DIR / (TAG + ".container")
         if cmd in ["enable", "quadlet"]:
+            if len(options) != 0:
+                raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
             finalcmd = shlex.join(
                 excmd := (
-                    PODLET_COMMAND
-                    if shutil.which(PODLET_COMMAND[0]) is not None
-                    else ([(str(PODMAN))] + PODLET_FALLBACK + PODLET_COMMAND[1:])
+                    (
+                        PODLET_COMMAND
+                        if shutil.which(PODLET_COMMAND[0]) is not None
+                        else ([(str(PODMAN))] + PODLET_FALLBACK + PODLET_COMMAND[1:])
+                    )
                     + RUN_COMMAND
                     + PODLET_OPTIONS
                     + COMMAND
@@ -399,6 +402,8 @@ def main_(args: list[str]) -> None:
                 "INFO: Make sure to enable 'loginctl enable-linger' to start process on boot and not on session start"
             )
         elif cmd == "disable":
+            if len(options) != 0:
+                raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
             if not path.exists():
                 return print(
                     f"File {path.name} not currently at '{QUADLET_DIR.as_posix()}', nothing to disable"
@@ -410,7 +415,21 @@ def main_(args: list[str]) -> None:
             print(shlex.join(excmd := ["systemctl", "--user", "daemon-reload"]))
             subprocess.run(excmd, check=True)
         elif cmd == "status":
+            if len(options) != 0:
+                raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
             print(shlex.join(excmd := ["systemctl", "--user", "status", TAG]))
+            subprocess.run(excmd, check=True)
+        elif cmd == "logs":
+            follow = False
+            if len(options) == 1 and options[0] in ["follow", "--follow", "-follow", "-f"]:
+                follow = True
+            elif len(options) != 0:
+                raise ArgumentError(f"Expected at most 1 argument follow, got {len(options)}")
+            print(
+                shlex.join(
+                    excmd := ["journalctl", "--user", "-u", TAG] + (["-f"] if follow else [])
+                )
+            )
             subprocess.run(excmd, check=True)
         else:
             assert False, f"Not implemented sub-command {cmd}"

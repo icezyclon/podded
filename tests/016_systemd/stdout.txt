@@ -1,10 +1,16 @@
 $ podded.py status
 systemctl --user status podded
 % ['systemctl', '--user', 'status', 'podded']
+$ podded.py logs
+journalctl --user -u podded
+% ['journalctl', '--user', '-u', 'podded']
+$ podded.py logs follow
+journalctl --user -u podded -f
+% ['journalctl', '--user', '-u', 'podded', '-f']
 $ podded.py enable
-podman run --rm --userns=keep-id --network=none --cap-drop=ALL --security-opt=no-new-privileges --read-only --tmpfs=/tmp -v=/tmp/<tempdir>:/tmp/<tempdir>:ro -w=/tmp/<tempdir> ghcr.io/containers/podlet:latest -i -a podman run -dit --name podded
-% ['podman', 'run', '--rm', '--userns=keep-id', '--network=none', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--read-only', '--tmpfs=/tmp', '-v=/tmp/<tempdir>:/tmp/<tempdir>:ro', '-w=/tmp/<tempdir>', 'ghcr.io/containers/podlet:latest', '-i', '-a', 'podman', 'run', '-dit', '--name', 'podded']
-Writing quadlet to '/home/loki/.config/containers/systemd/podded.container'
+podlet -i -a podman run -dit --name podded
+% ['podlet', '-i', '-a', 'podman', 'run', '-dit', '--name', 'podded']
+Writing quadlet to '/home/<homedir>/.config/containers/systemd/podded.container'
 systemctl --user daemon-reload
 % ['systemctl', '--user', 'daemon-reload']
 systemctl --user start podded
@@ -13,14 +19,14 @@ INFO: Make sure to enable 'loginctl enable-linger' to start process on boot and 
 $ podded.py disable
 systemctl --user stop podded
 % ['systemctl', '--user', 'stop', 'podded']
-Deleted '/home/loki/.config/containers/systemd/podded.container'
+Deleted '/home/<homedir>/.config/containers/systemd/podded.container'
 systemctl --user daemon-reload
 % ['systemctl', '--user', 'daemon-reload']
 $ podded.py quadlet
-# podman run --rm --userns=keep-id --network=none --cap-drop=ALL --security-opt=no-new-privileges --read-only --tmpfs=/tmp -v=/tmp/<tempdir>:/tmp/<tempdir>:ro -w=/tmp/<tempdir> ghcr.io/containers/podlet:latest -i -a podman run -dit --name podded
-% ['podman', 'run', '--rm', '--userns=keep-id', '--network=none', '--cap-drop=ALL', '--security-opt=no-new-privileges', '--read-only', '--tmpfs=/tmp', '-v=/tmp/<tempdir>:/tmp/<tempdir>:ro', '-w=/tmp/<tempdir>', 'ghcr.io/containers/podlet:latest', '-i', '-a', 'podman', 'run', '-dit', '--name', 'podded']
+# podlet -i -a podman run -dit --name podded
+% ['podlet', '-i', '-a', 'podman', 'run', '-dit', '--name', 'podded']
 [Timer]
-OnStartupSec=60
+OnStartupSec=30
 [Service]
 Restart=always
 RestartSec=10

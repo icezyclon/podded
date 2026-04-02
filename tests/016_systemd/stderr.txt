@@ -1,4 +1,6 @@
 $ podded.py status
+$ podded.py logs
+$ podded.py logs follow
 $ podded.py enable
 $ podded.py disable
 $ podded.py quadlet
