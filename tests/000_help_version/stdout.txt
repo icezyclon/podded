@@ -8,10 +8,11 @@ podded solves the inconvenience of having to manage run command, Containerfile a
 
 For more details see: https://github.com/icezyclon/podded
 
-Version: 1.3
+Version: 1.4
 
 Commands:
-  help                See this help text
+  help/-h             See this help text
+  quiet/-q ...        Disable most additional outputs for the following command (only as first argument)
   build               Build the last saved Contrainerfile
   run[-it]            Run the last saved command [in interactive mode]
   all[-it]            Build saved Containerfile and run saved command [in interactive mode]
@@ -41,4 +42,4 @@ Self-Modifying Commands:
   clear [build/run]   Clear saved Containerfile, run-command or both
   update-from-repo    Download and update this script with the most up-to-date podded.py from Github
 $ podded.py version
-podded - 1.3
+podded - 1.4

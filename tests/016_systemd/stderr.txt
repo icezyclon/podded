@@ -2,5 +2,7 @@ $ podded.py status
 $ podded.py logs
 $ podded.py logs follow
 $ podded.py enable
+MISSING: The podman-command has not been provided yet, use 'run COMMAND' to save one
 $ podded.py disable
 $ podded.py quadlet
+MISSING: The podman-command has not been provided yet, use 'run COMMAND' to save one

@@ -21,7 +21,7 @@ For more details see: https://github.com/icezyclon/podded
 # You may still/also change the marked sections by hand, but take care to NOT remove these comments.
 # Also, all global config variables are of types: Path, list[str], str, bool, int - no other types are allowed
 
-__version__ = "1.3"
+__version__ = "1.4"
 
 import ast
 import difflib
@@ -48,7 +48,7 @@ COMMAND = []
 # WARN: On modifications with 'edit' only hardcoded values will be written back, use with care or edit manually!
 TAG = Path(__file__).name.split(".", 1)[0].replace(" ", "_")
 PODMAN = Path("podman")  # path to podman executable (is not resolved before executing)
-BUILD_COMMAND = ["build", "--tag", TAG]  # + <temp-Containerfile-dir>
+BUILD_COMMAND = ["build", "-f", "-", "--tag", TAG, "."]
 RUN_COMMAND = ["run", "-dit", "--name", TAG]  # + COMMAND
 RUN_IT_COMMAND = ["run", "-it", "--name", TAG]  # + COMMAND
 STOP_COMMAND = ["stop"]  # + [-t <time>] + TAG
@@ -95,6 +95,9 @@ class Locked(Exception):
 
 class NotProvided(Exception):
     pass
+
+
+log = print
 
 
 def _format_assignment(varname: str, value) -> str:
@@ -145,13 +148,13 @@ def _modify_variable(src: str, varname: str, new_value, *, plevel: int = 1) -> s
     new_code_lines = new_code.splitlines()
     new_lines = lines[:start_line] + new_code_lines + lines[end_line:]
     if plevel:
-        print(f"'{varname}' modified")
+        log(f"'{varname}' modified")
     if plevel > 1:
-        print("- ", end="")
-        print("\n- ".join(lines[start_line:end_line]).rstrip())
-        print("+ ", end="")
-        print("\n+ ".join(new_code_lines).rstrip())
-        print("")
+        log("- ", end="")
+        log("\n- ".join(lines[start_line:end_line]).rstrip())
+        log("+ ", end="")
+        log("\n+ ".join(new_code_lines).rstrip())
+        log("")
     return "\n".join(new_lines) + "\n"
 
 
@@ -161,7 +164,7 @@ def _modify(src: str, *, plevel: int = 1, **kwargs) -> tuple[str, dict]:
     for varname, newval in kwargs.items():
         if newval is None:
             if plevel:
-                print(f"'{varname}' unchanged")
+                log(f"'{varname}' unchanged")
             continue
         newsrc = _modify_variable(src, varname, newval, plevel=plevel)
         if src != newsrc:
@@ -237,12 +240,9 @@ def build_cmd():
             + ("" if LOCK else " yet, use 'build PATH' to save one")
         )
 
-    tmpdir_obj = tempfile.TemporaryDirectory(prefix="podded_")
-    tmpdir = Path(tmpdir_obj.name)
-    (tmpdir / "Containerfile").write_text(BUILD)
-    excmd = [(str(PODMAN))] + BUILD_COMMAND + [str(tmpdir)]
-    print(shlex.join(excmd))
-    subprocess.run(excmd, check=True)
+    excmd = [(str(PODMAN))] + BUILD_COMMAND
+    log(shlex.join(excmd))
+    subprocess.run(excmd, check=True, input=BUILD, text=True)
 
 
 def run_cmd(interactive: bool):
@@ -252,22 +252,27 @@ def run_cmd(interactive: bool):
             + ("" if LOCK else " yet, use 'run COMMAND' to save one")
         )
     excmd = [(str(PODMAN))] + (RUN_IT_COMMAND if interactive else RUN_COMMAND) + COMMAND
-    print(shlex.join(excmd))
+    log(shlex.join(excmd))
     subprocess.run(excmd, cwd=_CDIR, check=True)
 
 
 def main_(args: list[str]) -> None:
+    if len(args) and args[0].lower() in ["quiet", "--quiet", "-q"]:
+        args = args[1:]
+        globals()["log"] = lambda *args, **kwargs: None
+
     if len(args) == 0:
         args = ["help"]
 
     cmd, options = args[0].lower(), args[1:]
-    if cmd in ["help", "--help"]:
+    if cmd in ["help", "--help", "-h"]:
         print(
             __doc__.lstrip(),
             f"Version: {__version__}",
             "",
             "Commands:",
-            "  help                See this help text",
+            "  help/-h             See this help text",
+            "  quiet/-q ...        Disable most additional outputs for the following command (only as first argument)",
             "  build               Build the last saved Contrainerfile",
             "  run[-it]            Run the last saved command [in interactive mode]",
             "  all[-it]            Build saved Containerfile and run saved command [in interactive mode]",
@@ -333,24 +338,29 @@ def main_(args: list[str]) -> None:
         elif len(options) != 0:
             raise ArgumentError(f"Expected at most 1 argument TIME:int, got {len(options)}")
         excmd = [(str(PODMAN))] + STOP_COMMAND + options + [TAG]
-        print(shlex.join(excmd))
+        log(shlex.join(excmd))
         subprocess.run(excmd)
     elif cmd in ["attach"]:
         excmd = [(str(PODMAN))] + ATTACH_COMMAND + [TAG]
-        print('INFO: default detach sequence is: "ctrl-p,ctrl-q"')
-        print(shlex.join(excmd))
+        log('INFO: default detach sequence is: "ctrl-p,ctrl-q"')
+        log(shlex.join(excmd))
         subprocess.run(excmd)
     elif cmd in ["exec"]:
         if len(options) == 0:
             options = ["sh"]
         excmd = [(str(PODMAN))] + EXEC_COMMAND + [TAG] + options
-        print(shlex.join(excmd))
+        log(shlex.join(excmd))
         subprocess.run(excmd)
     elif cmd in ["enable", "disable", "status", "quadlet", "logs"]:
         path = QUADLET_DIR / (TAG + ".container")
         if cmd in ["enable", "quadlet"]:
             if len(options) != 0:
                 raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
+            if not COMMAND:  # and len(options) == 0:
+                raise NotProvided(
+                    "The podman-command has not been provided"
+                    + ("" if LOCK else " yet, use 'run COMMAND' to save one")
+                )
             finalcmd = shlex.join(
                 excmd := (
                     (
@@ -363,7 +373,10 @@ def main_(args: list[str]) -> None:
                     + COMMAND
                 )
             )
-            print(("# " if cmd == "quadlet" else "") + finalcmd)
+            if cmd == "quadlet":
+                print("# " + finalcmd)
+            else:
+                log(finalcmd)
             gen = subprocess.run(excmd, cwd=_CDIR, check=True, text=True, capture_output=True)
 
             def _clean(s: str):
@@ -389,16 +402,16 @@ def main_(args: list[str]) -> None:
 
             if not QUADLET_DIR.exists():
                 QUADLET_DIR.mkdir(parents=True)
-            print(
+            log(
                 f"Writing quadlet to '{path.as_posix()}'"
                 + (" (overwriting existing quadlet)" if path.exists() else "")
             )
             path.write_text("# " + finalcmd + "\n" + quadlet)
-            print(shlex.join(excmd := ["systemctl", "--user", "daemon-reload"]))
+            log(shlex.join(excmd := ["systemctl", "--user", "daemon-reload"]))
             subprocess.run(excmd, check=True)
-            print(shlex.join(excmd := ["systemctl", "--user", "start", TAG]))
+            log(shlex.join(excmd := ["systemctl", "--user", "start", TAG]))
             subprocess.run(excmd, check=True)
-            print(
+            log(
                 "INFO: Make sure to enable 'loginctl enable-linger' to start process on boot and not on session start"
             )
         elif cmd == "disable":
@@ -408,16 +421,16 @@ def main_(args: list[str]) -> None:
                 return print(
                     f"File {path.name} not currently at '{QUADLET_DIR.as_posix()}', nothing to disable"
                 )
-            print(shlex.join(excmd := ["systemctl", "--user", "stop", TAG]))
+            log(shlex.join(excmd := ["systemctl", "--user", "stop", TAG]))
             subprocess.run(excmd, check=True)
             print(f"Deleted '{path.as_posix()}'")
             path.unlink()
-            print(shlex.join(excmd := ["systemctl", "--user", "daemon-reload"]))
+            log(shlex.join(excmd := ["systemctl", "--user", "daemon-reload"]))
             subprocess.run(excmd, check=True)
         elif cmd == "status":
             if len(options) != 0:
                 raise ArgumentError(f"Expected 0 arguments, got {len(options)}")
-            print(shlex.join(excmd := ["systemctl", "--user", "status", TAG]))
+            log(shlex.join(excmd := ["systemctl", "--user", "status", TAG]))
             subprocess.run(excmd, check=True)
         elif cmd == "logs":
             follow = False
@@ -425,7 +438,7 @@ def main_(args: list[str]) -> None:
                 follow = True
             elif len(options) != 0:
                 raise ArgumentError(f"Expected at most 1 argument follow, got {len(options)}")
-            print(
+            log(
                 shlex.join(
                     excmd := ["journalctl", "--user", "-u", TAG] + (["-f"] if follow else [])
                 )
@@ -486,7 +499,7 @@ def main_(args: list[str]) -> None:
         else:
             src, _ = _modify(src, plevel=0, lock=False, build="", command=[])
             msg = f"Writing cleared copy to '{path.as_posix()}', you may want to add Containerfile and commands"
-        print(msg)
+        log(msg)
         path.write_text(src)
         path.chmod(0o755)
     elif cmd in ["update", "update-from-repo"]:

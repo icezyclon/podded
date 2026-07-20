@@ -11,7 +11,7 @@ podded
 $ podded.py print PODMAN
 podman
 $ podded.py print BUILD_COMMAND
-build --tag podded
+build -f - --tag podded .
 $ podded.py print RUN_COMMAND
 run -dit --name podded
 $ podded.py print run_command

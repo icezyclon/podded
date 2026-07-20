@@ -16,8 +16,8 @@ $ podded.py build Containerfile
 + CMD [ "python3" ]
 + """
 
-podman build --tag podded /tmp/<tempdir>
-% ['podman', 'build', '--tag', 'podded', '/tmp/<tempdir>']
+podman build -f - --tag podded .
+% ['podman', 'build', '-f', '-', '--tag', 'podded', '.']
 $ podded.py build
-podman build --tag podded /tmp/<tempdir>
-% ['podman', 'build', '--tag', 'podded', '/tmp/<tempdir>']
+podman build -f - --tag podded .
+% ['podman', 'build', '-f', '-', '--tag', 'podded', '.']

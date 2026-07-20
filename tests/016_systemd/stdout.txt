@@ -8,27 +8,6 @@ $ podded.py logs follow
 journalctl --user -u podded -f
 % ['journalctl', '--user', '-u', 'podded', '-f']
 $ podded.py enable
-podlet -i -a podman run -dit --name podded
-% ['podlet', '-i', '-a', 'podman', 'run', '-dit', '--name', 'podded']
-Writing quadlet to '/home/<homedir>/.config/containers/systemd/podded.container'
-systemctl --user daemon-reload
-% ['systemctl', '--user', 'daemon-reload']
-systemctl --user start podded
-% ['systemctl', '--user', 'start', 'podded']
-INFO: Make sure to enable 'loginctl enable-linger' to start process on boot and not on session start
 $ podded.py disable
-systemctl --user stop podded
-% ['systemctl', '--user', 'stop', 'podded']
-Deleted '/home/<homedir>/.config/containers/systemd/podded.container'
-systemctl --user daemon-reload
-% ['systemctl', '--user', 'daemon-reload']
+File podded.container not currently at '/home/<homedir>/.config/containers/systemd', nothing to disable
 $ podded.py quadlet
-# podlet -i -a podman run -dit --name podded
-% ['podlet', '-i', '-a', 'podman', 'run', '-dit', '--name', 'podded']
-[Timer]
-OnStartupSec=30
-[Service]
-Restart=always
-RestartSec=10
-
-<proxy-stdout>
